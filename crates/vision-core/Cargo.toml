@@ -1,0 +1,16 @@
+[package]
+name = "vision-core"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "vision-core"
+path = "src/main.rs"
+
+[dependencies]
+vision-detection = { path = "../vision-detection" }
+vision-nt = { path = "../vision-nt" }
+vision-calibration = { path = "../vision-calibration" }
+
+serde = { workspace = true }
+toml = "0.9"

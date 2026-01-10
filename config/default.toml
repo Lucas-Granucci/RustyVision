@@ -1,0 +1,27 @@
+[system]
+log_level = "info"
+telemetry_enabled = true
+
+[networktables]
+server = "10.TE.AM.2"  # Robot IP
+identity = "rusty-vision"
+publish_rate_hz = 50
+
+[cameras.webcam]
+device = 0
+
+[cameras.robot]
+device = 1
+width = 1280
+height = 720
+fps = 30
+
+[detection.gamepiece]
+enabled = true
+color_lower = [20, 100, 100]  # HSV
+color_upper = [30, 255, 255]
+min_area = 100
+
+# [web]
+# enabled = true
+# port = 5800

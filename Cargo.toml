@@ -1,0 +1,14 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/vision-core",
+    "crates/vision-detection",
+    "crates/vision-nt",
+    "crates/vision-calibration",
+]
+
+[workspace.dependencies]
+image = "0.25.9"
+minifb = "0.28.0"
+nokhwa = {version="0.10.10", features=["input-native"]}
+serde = { version = "1.0", features = ["derive"] }
