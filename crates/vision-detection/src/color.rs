@@ -14,13 +14,32 @@ impl ColorRange {
     }
 }
 
-pub fn mask_hsv(hsv_data: &[u8], range: ColorRange, out_buf: &mut Vec<u8>) {
-    out_buf.clear();
-    out_buf.extend(hsv_data.chunks_exact(3).map(|p| {
-        if range.in_range(p[0], p[1], p[2]) {
-            255
-        } else {
-            0
-        }
-    }));
+// Converts an RGB triple to HSV components scaled to bytes.
+pub fn rgb_to_hsv(r: u8, g: u8, b: u8) -> (u8, u8, u8) {
+    let r = r as f32 / 255.0;
+    let g = g as f32 / 255.0;
+    let b = b as f32 / 255.0;
+
+    let max = r.max(g).max(b);
+    let min = r.min(g).min(b);
+    let delta = max - min;
+
+    let h = if delta == 0.0 {
+        0.0
+    } else if max == r {
+        60.0 * (((g - b) / delta) % 6.0)
+    } else if max == g {
+        60.0 * (((b - r) / delta) + 2.0)
+    } else {
+        60.0 * (((r - g) / delta) + 4.0)
+    };
+
+    let h = if h < 0.0 { h + 360.0 } else { h };
+    let h_byte = (h * 255.0 / 360.0).round() as u8;
+
+    let s = if max == 0.0 { 0.0 } else { delta / max };
+    let s_byte = (s * 255.0).round() as u8;
+    let v_byte = (max * 255.0).round() as u8;
+
+    (h_byte, s_byte, v_byte)
 }

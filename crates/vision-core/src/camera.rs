@@ -17,6 +17,7 @@ pub fn capture_frame_into(
 ) -> Result<(u32, u32), Box<dyn std::error::Error>> {
     let frame = camera.frame()?;
     let decoded = frame.decode_image::<RgbFormat>()?;
+    // let decoded = frame.decode_image::<YuyvFormat>()?;
 
     let width = decoded.width();
     let height = decoded.height();
