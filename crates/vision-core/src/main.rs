@@ -1,4 +1,8 @@
+mod camera;
 mod config;
+mod frame;
+
+use camera::{open_camera, Camera};
 use config::Config;
 
 fn main() {
@@ -12,4 +16,11 @@ fn main() {
             Config::default()
         }
     };
+
+    let camera = open_camera(
+        config.camera.device_id,
+        config.camera.width,
+        config.camera.height,
+        config.camera.fps,
+    );
 }

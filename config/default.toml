@@ -7,16 +7,13 @@ server = "10.TE.AM.2"  # Robot IP
 identity = "rusty-vision"
 publish_rate_hz = 50
 
-[cameras.webcam]
-device = 0
-
-[cameras.robot]
-device = 1
+[camera]
+device_id = 0
 width = 1280
 height = 720
 fps = 30
 
-[detection.gamepiece]
+[detection]
 enabled = true
 color_lower = [20, 100, 100]  # HSV
 color_upper = [30, 255, 255]

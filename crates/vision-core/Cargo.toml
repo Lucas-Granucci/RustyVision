@@ -14,3 +14,4 @@ vision-calibration = { path = "../vision-calibration" }
 
 serde = { workspace = true }
 toml = "0.9"
+nokhwa = {version="0.10.10", features=["input-native"]}
