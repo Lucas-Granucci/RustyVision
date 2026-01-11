@@ -8,6 +8,7 @@ use std::time::{Duration, Instant};
 
 use crate::{
     camera::{capture_frame_into, get_camera},
+    detection::run_ball_detection,
     detection::run_color_mask_into,
 };
 
@@ -39,6 +40,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut last_log = Instant::now();
     let mut accum_capture = Duration::ZERO;
     let mut accum_mask = Duration::ZERO;
+    let mut accum_cont = Duration::ZERO;
     let mut accum_blit = Duration::ZERO;
 
     // Create buffers
@@ -47,6 +49,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut rgb_buf: Vec<u8> = vec![0; pixel_count * 3];
     let mut mask_buf: Vec<u8> = vec![0; pixel_count];
+    let mut contour_buf: Vec<u8> = vec![0; pixel_count];
 
     while window.is_open() && !window.is_key_down(Key::Escape) {
         let t_capture = Instant::now();
@@ -58,6 +61,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let t_mask = Instant::now();
         run_color_mask_into(&rgb_buf, &config.detection, &mut mask_buf);
         let mask_dt = t_mask.elapsed();
+
+        let t_cont = Instant::now();
+        contour_buf.fill(0);
+        run_ball_detection(
+            &mask_buf,
+            config.camera.width,
+            config.camera.height,
+            &mut contour_buf,
+        );
+        let cont_dt = t_cont.elapsed();
 
         let t_blit = Instant::now();
         for (dst, &gray) in window_buf.iter_mut().zip(mask_buf.iter()) {
@@ -74,6 +87,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         frames += 1;
         accum_capture += capture_dt;
         accum_mask += mask_dt;
+        accum_cont += cont_dt;
         accum_blit += blit_dt;
 
         let elapsed = last_log.elapsed();
@@ -82,6 +96,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let denom = frames as f64;
             let avg_capture_ms = accum_capture.as_secs_f64() * 1000.0 / denom;
             let avg_mask_ms = accum_mask.as_secs_f64() * 1000.0 / denom;
+            let avg_cont_ms = accum_cont.as_secs_f64() * 1000.0 / denom;
             let avg_blit_ms = accum_blit.as_secs_f64() * 1000.0 / denom;
 
             tracing::info!(
@@ -89,6 +104,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 frames_in_window = frames,
                 avg_capture_ms = avg_capture_ms,
                 avg_mask_ms = avg_mask_ms,
+                avg_cont_ms = avg_cont_ms,
                 avg_blit_ms = avg_blit_ms
             );
 
