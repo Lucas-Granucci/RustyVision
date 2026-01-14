@@ -37,6 +37,8 @@ pub struct DetectionConfig {
     pub color_lower: [u8; 3],
     pub color_upper: [u8; 3],
     pub min_area: i32,
+    pub r_min: u32,
+    pub r_max: u32,
 }
 
 impl Config {
@@ -75,6 +77,8 @@ impl Config {
                 color_lower: [20, 100, 100],
                 color_upper: [30, 255, 255],
                 min_area: 100,
+                r_min: 100,
+                r_max: 300,
             },
         }
     }

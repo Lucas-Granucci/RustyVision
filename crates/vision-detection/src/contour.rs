@@ -1,15 +1,14 @@
+use ndarray::ArrayView2;
+
 pub struct Contour {
     pub points: Vec<(i32, i32)>,
     pub area: f32,
     pub perimeter: f32,
 }
 
-pub fn contours_from_mask(mask: &[u8], width: u32, height: u32) -> Vec<Contour> {
-    let width = width as i32;
-    let height = height as i32;
+pub fn contours_from_mask(mask: ArrayView2<u8>) -> Vec<Contour> {
+    let (height, width) = mask.dim();
 
-    let at = |x: i32, y: i32| (x + width * y) as usize;
-    let mut done = mask.to_vec();
     let mut contours = Vec::new();
 
     let neighbors = [
@@ -25,19 +24,18 @@ pub fn contours_from_mask(mask: &[u8], width: u32, height: u32) -> Vec<Contour> 
 
     for y in 0..height {
         for x in 0..width {
-            if mask[at(x, y)] == 255 && x > 0 && mask[at(x - 1, y)] == 0 {
+            if mask[(y, x)] == 255 && x > 0 && mask[(y, x - 1)] == 0 {
                 let mut contour_points: Vec<(i32, i32)> = Vec::new();
 
                 let start_x = x;
                 let start_y = y;
-                let mut curr_x = x;
-                let mut curr_y = y;
+                let mut curr_x = x as i32;
+                let mut curr_y = y as i32;
 
                 let mut dir = 4;
 
                 loop {
                     contour_points.push((curr_x, curr_y));
-                    done[at(curr_x, curr_y)] = 2;
 
                     let mut next_found = false;
                     let mut next_x = 0;
@@ -51,11 +49,15 @@ pub fn contours_from_mask(mask: &[u8], width: u32, height: u32) -> Vec<Contour> 
                         let check_x = curr_x + dx;
                         let check_y = curr_y + dy;
 
-                        if check_x < 0 || check_x >= width || check_y < 0 || check_y >= height {
+                        if check_x < 0
+                            || check_x >= width as i32
+                            || check_y < 0
+                            || check_y >= height as i32
+                        {
                             continue;
                         }
 
-                        if mask[at(check_x, check_y)] == 255 {
+                        if mask[(check_y as usize, check_x as usize)] == 255 {
                             next_x = check_x;
                             next_y = check_y;
                             next_dir = (try_dir + 4) % 8;
@@ -71,7 +73,7 @@ pub fn contours_from_mask(mask: &[u8], width: u32, height: u32) -> Vec<Contour> 
                     curr_y = next_y;
                     dir = next_dir;
 
-                    if curr_x == start_x && curr_y == start_y {
+                    if curr_x == start_x as i32 && curr_y == start_y as i32 {
                         break;
                     }
                 }

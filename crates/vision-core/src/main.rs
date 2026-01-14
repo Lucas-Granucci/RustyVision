@@ -4,12 +4,13 @@ mod detection;
 
 use config::Config;
 use minifb::{Key, Window, WindowOptions};
+use ndarray::Array2;
 use std::time::{Duration, Instant};
+use vision_detection::circle::precompute_circle_points;
 
 use crate::{
-    camera::{capture_frame_into, get_camera},
-    detection::run_ball_detection,
-    detection::run_color_mask,
+    camera::{capture_frame, get_camera},
+    detection::{detect_circles, detect_contours, run_color_mask},
 };
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -24,15 +25,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Camera stuff
     let mut camera = get_camera(config.camera.device_id)?;
+    let width = config.camera.width as usize;
+    let height = config.camera.height as usize;
     camera.open_stream()?;
 
     // Setup window
-    let mut window = Window::new(
-        "RustyVision",
-        config.camera.width as usize,
-        config.camera.height as usize,
-        WindowOptions::default(),
-    )?;
+    let mut window = Window::new("RustyVision", width, height, WindowOptions::default())?;
     window.set_target_fps(60);
 
     // Setup timing
@@ -41,42 +39,49 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut accum_cont = Duration::ZERO;
 
     // Create buffers
-    let pixel_count = (config.camera.width * config.camera.height) as usize;
+    let pixel_count = width * height;
     let mut window_buf: Vec<u32> = vec![0; pixel_count];
 
-    let mut rgb_buf: Vec<u8> = vec![0; pixel_count * 3];
-    let mut mask_buf: Vec<u8> = vec![0; pixel_count];
-    let mut contour_buf: Vec<u8> = vec![0; pixel_count];
-    let mut circle_buf: Vec<u8> = vec![0; pixel_count];
+    let mut rgb_frame: Array2<[u8; 3]> = Array2::from_elem((height, width), [0u8; 3]);
+    let mut mask_arr: Array2<u8> = Array2::zeros((height, width));
+    let mut contour_arr: Array2<u8> = Array2::zeros((height, width));
+    let mut circle_arr: Array2<u8> = Array2::zeros((height, width));
+
+    // Circle cache
+    let circle_cache = precompute_circle_points(config.detection.r_min, config.detection.r_max);
 
     while window.is_open() && !window.is_key_down(Key::Escape) {
         // Camera capture into RGB buf
-        let (_, _) = capture_frame_into(&mut camera, &mut rgb_buf)?;
+        capture_frame(&mut camera, &mut rgb_frame)?;
 
-        run_color_mask(&rgb_buf, &config.detection, &mut mask_buf);
+        // Run HSV color mask
+        let color_lower = config.detection.color_lower;
+        let color_upper = config.detection.color_upper;
+        run_color_mask(rgb_frame.view(), &mut mask_arr, color_lower, color_upper);
 
         let t_cont = Instant::now();
-        contour_buf.fill(0);
-        circle_buf.fill(0);
-        run_ball_detection(
-            &mask_buf,
-            config.camera.width,
-            config.camera.height,
-            &mut contour_buf,
-            &mut circle_buf,
+
+        // Extract contours from mask
+        detect_contours(mask_arr.view(), &mut contour_arr);
+
+        // Run Houghs circle detection
+        detect_circles(
+            contour_arr.view(),
+            &mut circle_arr,
+            config.detection.r_min,
+            config.detection.r_max,
+            &circle_cache,
         );
         let cont_dt = t_cont.elapsed();
 
-        for (dst, &gray) in window_buf.iter_mut().zip(circle_buf.iter()) {
+        // Convert to RGB for display
+        for (dst, &gray) in window_buf.iter_mut().zip(circle_arr.iter()) {
             let g = gray as u32;
             *dst = (g << 16) | (g << 8) | g;
         }
-        window.update_with_buffer(
-            &window_buf,
-            config.camera.width as usize,
-            config.camera.height as usize,
-        )?;
+        window.update_with_buffer(&window_buf, width, height)?;
 
+        // Timing
         frames += 1;
         accum_cont += cont_dt;
 
@@ -86,11 +91,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let denom = frames as f64;
             let avg_cont_ms = accum_cont.as_secs_f64() * 1000.0 / denom;
 
-            // tracing::info!(
-            //     fps = fps,
-            //     frames_in_window = frames,
-            //     avg_cont_ms = avg_cont_ms,
-            // );
+            tracing::info!(
+                fps = fps,
+                frames_in_window = frames,
+                avg_cont_ms = avg_cont_ms,
+            );
 
             frames = 0;
             accum_cont = Duration::ZERO;

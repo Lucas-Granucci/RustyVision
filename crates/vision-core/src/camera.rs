@@ -1,3 +1,4 @@
+use ndarray::Array2;
 use nokhwa::pixel_format::RgbFormat;
 use nokhwa::utils::{CameraIndex, RequestedFormat, RequestedFormatType};
 use nokhwa::Camera;
@@ -11,19 +12,26 @@ pub fn get_camera(device_id: u32) -> Result<Camera, Box<dyn std::error::Error>> 
     Ok(camera)
 }
 
-pub fn capture_frame_into(
+pub fn capture_frame(
     camera: &mut Camera,
-    rgb_buf: &mut Vec<u8>,
-) -> Result<(u32, u32), Box<dyn std::error::Error>> {
+    rgb_frame: &mut Array2<[u8; 3]>,
+) -> Result<(), Box<dyn std::error::Error>> {
     let frame = camera.frame()?;
     let decoded = frame.decode_image::<RgbFormat>()?;
-    // let decoded = frame.decode_image::<YuyvFormat>()?;
 
-    let width = decoded.width();
-    let height = decoded.height();
-    let expected = (width * height * 3) as usize;
+    let width = decoded.width() as usize;
+    let height = decoded.height() as usize;
 
-    rgb_buf.resize(expected, 0);
-    rgb_buf.copy_from_slice(decoded.as_raw());
-    Ok((width, height))
+    if rgb_frame.shape() != [height, width] {
+        *rgb_frame = Array2::from_elem((height, width), [0u8; 3]);
+    }
+
+    let raw_data = decoded.as_raw();
+    for (i, chunk) in raw_data.chunks_exact(3).enumerate() {
+        let row = i / width;
+        let col = i % width;
+        rgb_frame[(row, col)] = [chunk[0], chunk[1], chunk[2]];
+    }
+
+    Ok(())
 }

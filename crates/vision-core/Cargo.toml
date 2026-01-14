@@ -12,6 +12,7 @@ vision-detection = { path = "../vision-detection" }
 vision-nt = { path = "../vision-nt" }
 vision-calibration = { path = "../vision-calibration" }
 
+ndarray = { workspace = true }
 serde = { workspace = true }
 tracing = { workspace = true}
 tracing-subscriber = { workspace = true }

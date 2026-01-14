@@ -18,6 +18,8 @@ enabled = true
 color_lower = [20, 140, 140]  # HSV
 color_upper = [75, 255, 255]
 min_area = 100
+r_min = 100
+r_max = 300
 
 # [web]
 # enabled = true

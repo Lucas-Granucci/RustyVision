@@ -1,5 +1,9 @@
+use ndarray::{Array3, ArrayView2};
+
+use crate::circle::Circle;
+
 struct Accumulator {
-    data: Vec<u32>,
+    data: Array3<u32>,
     width: usize,
     height: usize,
     radius_range: usize,
@@ -12,7 +16,7 @@ impl Accumulator {
         let radius_range = (r_max - r_min) as usize;
 
         Self {
-            data: vec![0; width * height * radius_range],
+            data: Array3::zeros((width, height, radius_range)),
             width,
             height,
             radius_range,
@@ -21,58 +25,23 @@ impl Accumulator {
 
     fn vote(&mut self, x: usize, y: usize, r: usize) {
         if x < self.width && y < self.height && r < self.radius_range {
-            let idx = x + self.width * y + self.width * self.height * r;
-            self.data[idx] += 1;
+            self.data[[x, y, r]] += 1;
         }
     }
-
-    fn get(&self, x: usize, y: usize, r: usize) -> u32 {
-        let idx = x + self.width * y + self.width * self.height * r;
-        self.data[idx]
-    }
-}
-
-pub struct Circle {
-    pub x: u32,
-    pub y: u32,
-    pub radius: u32,
-    pub votes: u32,
-}
-
-pub fn precompute_circle_points(r_min: u32, r_max: u32) -> Vec<Vec<(i32, i32)>> {
-    let mut points = Vec::with_capacity((r_max - r_min) as usize);
-    for r in r_min..r_max {
-        let circle_points = get_circle_points(r);
-        points.push(circle_points);
-    }
-    points
-}
-
-pub fn get_circle_points(radius: u32) -> Vec<(i32, i32)> {
-    let r = radius as f64;
-    let mut points: Vec<(i32, i32)> = Vec::with_capacity(360);
-    for angle_deg in 0..360 {
-        let theta = (angle_deg as f64) * std::f64::consts::PI / 180.0;
-        let x = (r * theta.cos()).round() as i32;
-        let y = (r * theta.sin()).round() as i32;
-        points.push((x, y));
-    }
-    points
 }
 
 pub fn hough_circles(
-    cont_buf: &[u8],
-    width: u32,
-    height: u32,
+    contour_arr: ArrayView2<u8>,
     r_min: u32,
     r_max: u32,
+    circle_cache: &Vec<Vec<(i32, i32)>>,
 ) -> Vec<Circle> {
+    let (height, width) = contour_arr.dim();
     let mut edges = Vec::new();
     for y in 0..height {
         for x in 0..width {
-            let idx = (x + width * y) as usize;
-            if cont_buf[idx] == 255 {
-                edges.push((x, y));
+            if contour_arr[(y, x)] == 255 {
+                edges.push((x as i32, y as i32));
             }
         }
     }
@@ -81,14 +50,13 @@ pub fn hough_circles(
         return Vec::new();
     }
 
-    let mut accumulator = Accumulator::new(width, height, r_min, r_max);
-    let cache = precompute_circle_points(r_min, r_max);
+    let mut accumulator = Accumulator::new(width as u32, height as u32, r_min, r_max);
 
     let w = width as i32;
     let h = height as i32;
 
     for r_idx in 0..(r_max - r_min) {
-        let circle_points = &cache[r_idx as usize];
+        let circle_points = &circle_cache[r_idx as usize];
 
         for &(edge_x, edge_y) in &edges {
             let ex = edge_x as i32;
@@ -109,7 +77,7 @@ pub fn hough_circles(
     for r_idx in 0..accumulator.radius_range {
         for y in 0..accumulator.height {
             for x in 00..accumulator.width {
-                let votes = accumulator.get(x, y, r_idx);
+                let votes = accumulator.data[[x, y, r_idx]];
                 if votes > threshold {
                     circles.push(Circle {
                         x: x as u32,
