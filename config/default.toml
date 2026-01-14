@@ -16,7 +16,7 @@ fps = 30
 [detection]
 enabled = true
 color_lower = [20, 140, 140]  # HSV
-color_upper = [55, 255, 255]
+color_upper = [75, 255, 255]
 min_area = 100
 
 # [web]

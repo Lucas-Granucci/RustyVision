@@ -1,98 +1,126 @@
-struct Circle {
-    x: f32,
-    y: f32,
-    r: f32,
+struct Accumulator {
+    data: Vec<u32>,
+    width: usize,
+    height: usize,
+    radius_range: usize,
 }
 
-pub struct Contour {
-    pub points: Vec<(i32, i32)>,
-    pub area: f32,
-    pub perimeter: f32,
+impl Accumulator {
+    fn new(img_w: u32, img_h: u32, r_min: u32, r_max: u32) -> Self {
+        let width = img_w as usize;
+        let height = img_h as usize;
+        let radius_range = (r_max - r_min) as usize;
+
+        Self {
+            data: vec![0; width * height * radius_range],
+            width,
+            height,
+            radius_range,
+        }
+    }
+
+    fn vote(&mut self, x: usize, y: usize, r: usize) {
+        if x < self.width && y < self.height && r < self.radius_range {
+            let idx = x + self.width * y + self.width * self.height * r;
+            self.data[idx] += 1;
+        }
+    }
+
+    fn get(&self, x: usize, y: usize, r: usize) -> u32 {
+        let idx = x + self.width * y + self.width * self.height * r;
+        self.data[idx]
+    }
 }
 
-pub fn contours_from_mask(mask: &[u8], width: u32, height: u32) -> Vec<Contour> {
-    let width = width as i32;
-    let height = height as i32;
+pub struct Circle {
+    pub x: u32,
+    pub y: u32,
+    pub radius: u32,
+    pub votes: u32,
+}
 
-    let at = |x: i32, y: i32| (x + width * y) as usize;
-    let mut done = mask.to_vec();
-    let mut contours = Vec::new();
+pub fn precompute_circle_points(r_min: u32, r_max: u32) -> Vec<Vec<(i32, i32)>> {
+    let mut points = Vec::with_capacity((r_max - r_min) as usize);
+    for r in r_min..r_max {
+        let circle_points = get_circle_points(r);
+        points.push(circle_points);
+    }
+    points
+}
 
-    let neighbors = [
-        (1, 0),
-        (1, -1),
-        (0, -1),
-        (-1, -1),
-        (-1, 0),
-        (-1, 1),
-        (0, 1),
-        (1, 1),
-    ];
+pub fn get_circle_points(radius: u32) -> Vec<(i32, i32)> {
+    let r = radius as f64;
+    let mut points: Vec<(i32, i32)> = Vec::with_capacity(360);
+    for angle_deg in 0..360 {
+        let theta = (angle_deg as f64) * std::f64::consts::PI / 180.0;
+        let x = (r * theta.cos()).round() as i32;
+        let y = (r * theta.sin()).round() as i32;
+        points.push((x, y));
+    }
+    points
+}
 
+pub fn hough_circles(
+    cont_buf: &[u8],
+    width: u32,
+    height: u32,
+    r_min: u32,
+    r_max: u32,
+) -> Vec<Circle> {
+    let mut edges = Vec::new();
     for y in 0..height {
         for x in 0..width {
-            if mask[at(x, y)] == 255 && x > 0 && mask[at(x - 1, y)] == 0 {
-                let mut contour_points: Vec<(i32, i32)> = Vec::new();
+            let idx = (x + width * y) as usize;
+            if cont_buf[idx] == 255 {
+                edges.push((x, y));
+            }
+        }
+    }
 
-                let start_x = x;
-                let start_y = y;
-                let mut curr_x = x;
-                let mut curr_y = y;
+    if edges.is_empty() {
+        return Vec::new();
+    }
 
-                let mut dir = 4;
+    let mut accumulator = Accumulator::new(width, height, r_min, r_max);
+    let cache = precompute_circle_points(r_min, r_max);
 
-                loop {
-                    contour_points.push((curr_x, curr_y));
-                    done[at(curr_x, curr_y)] = 2;
+    let w = width as i32;
+    let h = height as i32;
 
-                    let mut next_found = false;
-                    let mut next_x = 0;
-                    let mut next_y = 0;
-                    let mut next_dir = dir;
+    for r_idx in 0..(r_max - r_min) {
+        let circle_points = &cache[r_idx as usize];
 
-                    for i in 0..8 {
-                        let try_dir = (dir + 6 + i) % 8;
-                        let (dx, dy) = neighbors[dir];
+        for &(edge_x, edge_y) in &edges {
+            let ex = edge_x as i32;
+            let ey = edge_y as i32;
+            for &(dx, dy) in circle_points {
+                let center_x = ex + dx;
+                let center_y = ey + dy;
 
-                        let check_x = curr_x + dx;
-                        let check_y = curr_y + dy;
-
-                        if check_x < 0 || check_x >= width || check_y < 0 || check_y >= height {
-                            continue;
-                        }
-
-                        if mask[at(check_x, check_y)] == 255 {
-                            next_x = check_x;
-                            next_y = check_y;
-                            next_dir = (try_dir + 4) % 8;
-                            next_found = true;
-                            break;
-                        }
-                    }
-                    if !next_found {
-                        break;
-                    }
-
-                    curr_x = next_x;
-                    curr_y = next_y;
-                    dir = next_dir;
-
-                    if curr_x == start_x && curr_y == start_y {
-                        break;
-                    }
+                if center_x >= 0 && center_x < w && center_y >= 0 && center_y < h {
+                    accumulator.vote(center_x as usize, center_y as usize, r_idx as usize);
                 }
+            }
+        }
+    }
+    let threshold = 50;
+    let mut circles: Vec<Circle> = Vec::new();
 
-                if !contour_points.is_empty() {
-                    contours.push(Contour {
-                        points: contour_points,
-                        area: 0.0,
-                        perimeter: 0.0,
+    for r_idx in 0..accumulator.radius_range {
+        for y in 0..accumulator.height {
+            for x in 00..accumulator.width {
+                let votes = accumulator.get(x, y, r_idx);
+                if votes > threshold {
+                    circles.push(Circle {
+                        x: x as u32,
+                        y: y as u32,
+                        radius: r_min + r_idx as u32,
+                        votes,
                     })
                 }
             }
         }
     }
-    contours
-}
 
-fn hough_circles(mask: &[u8], width: u32, height: u32) {}
+    circles
+}

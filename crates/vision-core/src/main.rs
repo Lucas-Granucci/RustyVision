@@ -9,7 +9,7 @@ use std::time::{Duration, Instant};
 use crate::{
     camera::{capture_frame_into, get_camera},
     detection::run_ball_detection,
-    detection::run_color_mask_into,
+    detection::run_color_mask,
 };
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -38,10 +38,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Setup timing
     let mut frames: u64 = 0;
     let mut last_log = Instant::now();
-    let mut accum_capture = Duration::ZERO;
-    let mut accum_mask = Duration::ZERO;
     let mut accum_cont = Duration::ZERO;
-    let mut accum_blit = Duration::ZERO;
 
     // Create buffers
     let pixel_count = (config.camera.width * config.camera.height) as usize;
@@ -50,30 +47,27 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut rgb_buf: Vec<u8> = vec![0; pixel_count * 3];
     let mut mask_buf: Vec<u8> = vec![0; pixel_count];
     let mut contour_buf: Vec<u8> = vec![0; pixel_count];
+    let mut circle_buf: Vec<u8> = vec![0; pixel_count];
 
     while window.is_open() && !window.is_key_down(Key::Escape) {
-        let t_capture = Instant::now();
-
         // Camera capture into RGB buf
         let (_, _) = capture_frame_into(&mut camera, &mut rgb_buf)?;
-        let capture_dt = t_capture.elapsed();
 
-        let t_mask = Instant::now();
-        run_color_mask_into(&rgb_buf, &config.detection, &mut mask_buf);
-        let mask_dt = t_mask.elapsed();
+        run_color_mask(&rgb_buf, &config.detection, &mut mask_buf);
 
         let t_cont = Instant::now();
         contour_buf.fill(0);
+        circle_buf.fill(0);
         run_ball_detection(
             &mask_buf,
             config.camera.width,
             config.camera.height,
             &mut contour_buf,
+            &mut circle_buf,
         );
         let cont_dt = t_cont.elapsed();
 
-        let t_blit = Instant::now();
-        for (dst, &gray) in window_buf.iter_mut().zip(mask_buf.iter()) {
+        for (dst, &gray) in window_buf.iter_mut().zip(circle_buf.iter()) {
             let g = gray as u32;
             *dst = (g << 16) | (g << 8) | g;
         }
@@ -82,36 +76,24 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             config.camera.width as usize,
             config.camera.height as usize,
         )?;
-        let blit_dt = t_blit.elapsed();
 
         frames += 1;
-        accum_capture += capture_dt;
-        accum_mask += mask_dt;
         accum_cont += cont_dt;
-        accum_blit += blit_dt;
 
         let elapsed = last_log.elapsed();
         if elapsed >= Duration::from_secs(1) && frames > 0 {
             let fps = frames as f64 / elapsed.as_secs_f64();
             let denom = frames as f64;
-            let avg_capture_ms = accum_capture.as_secs_f64() * 1000.0 / denom;
-            let avg_mask_ms = accum_mask.as_secs_f64() * 1000.0 / denom;
             let avg_cont_ms = accum_cont.as_secs_f64() * 1000.0 / denom;
-            let avg_blit_ms = accum_blit.as_secs_f64() * 1000.0 / denom;
 
-            tracing::info!(
-                fps = fps,
-                frames_in_window = frames,
-                avg_capture_ms = avg_capture_ms,
-                avg_mask_ms = avg_mask_ms,
-                avg_cont_ms = avg_cont_ms,
-                avg_blit_ms = avg_blit_ms
-            );
+            // tracing::info!(
+            //     fps = fps,
+            //     frames_in_window = frames,
+            //     avg_cont_ms = avg_cont_ms,
+            // );
 
             frames = 0;
-            accum_capture = Duration::ZERO;
-            accum_mask = Duration::ZERO;
-            accum_blit = Duration::ZERO;
+            accum_cont = Duration::ZERO;
             last_log = Instant::now();
         }
     }
