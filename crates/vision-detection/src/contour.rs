@@ -1,92 +1,117 @@
 use ndarray::ArrayView2;
+use std::collections::VecDeque;
+use std::ops::{Add, Sub};
 
 pub struct Contour {
-    pub points: Vec<(i32, i32)>,
-    pub area: f32,
-    pub perimeter: f32,
+    pub points: Vec<Point>,
 }
 
-pub fn contours_from_mask(mask: ArrayView2<u8>) -> Vec<Contour> {
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct Point {
+    pub x: i32,
+    pub y: i32,
+}
+
+impl Point {
+    fn new(x: i32, y: i32) -> Self {
+        Self { x, y }
+    }
+}
+
+impl Add for Point {
+    type Output = Self;
+    fn add(self, other: Self) -> Self {
+        Self::new(self.x + other.x, self.y + other.y)
+    }
+}
+
+impl Sub for Point {
+    type Output = Self;
+    fn sub(self, other: Self) -> Self {
+        Self::new(self.x - other.x, self.y - other.y)
+    }
+}
+
+pub fn find_contours(mask: ArrayView2<u8>) -> Vec<Contour> {
     let (height, width) = mask.dim();
 
-    let mut contours = Vec::new();
+    let get_position_if_non_zero_pixel = |mask: ArrayView2<u8>, curr: Point| {
+        let in_bounds =
+            curr.x > -1 && curr.x < width as i32 && curr.y > -1 && curr.y < height as i32;
 
-    let neighbors = [
-        (1, 0),
-        (1, -1),
-        (0, -1),
-        (-1, -1),
-        (-1, 0),
-        (-1, 1),
-        (0, 1),
-        (1, 1),
-    ];
+        if in_bounds && mask[(curr.y as usize, curr.x as usize)] != 0 {
+            Some(curr)
+        } else {
+            None
+        }
+    };
+
+    let mut diffs = VecDeque::from(vec![
+        Point::new(-1, 0),  // w
+        Point::new(-1, -1), // nw
+        Point::new(0, -1),  // n
+        Point::new(1, -1),  // ne
+        Point::new(1, 0),   // e
+        Point::new(1, 1),   // se
+        Point::new(0, 1),   // s
+        Point::new(-1, 1),  // sw
+    ]);
+
+    let mut contours: Vec<Contour> = Vec::new();
 
     for y in 0..height {
         for x in 0..width {
+            if mask[(y, x)] == 0 {
+                continue;
+            }
+
             if mask[(y, x)] == 255 && x > 0 && mask[(y, x - 1)] == 0 {
-                let mut contour_points: Vec<(i32, i32)> = Vec::new();
+                let adj = Point::new((x - 1) as i32, y as i32);
+                let curr = Point::new(x as i32, y as i32);
+                let mut contour_points: Vec<Point> = Vec::new();
 
-                let start_x = x;
-                let start_y = y;
-                let mut curr_x = x as i32;
-                let mut curr_y = y as i32;
+                rotate_to_value(&mut diffs, adj - curr);
 
-                let mut dir = 4;
+                if let Some(pos1) = diffs
+                    .iter()
+                    .find_map(|diff| get_position_if_non_zero_pixel(mask, *diff + curr))
+                {
+                    let mut pos2 = pos1;
+                    let mut pos3 = curr;
 
-                loop {
-                    contour_points.push((curr_x, curr_y));
+                    loop {
+                        contour_points.push(Point::new(pos3.x, pos3.y));
+                        rotate_to_value(&mut diffs, pos2 - pos3);
+                        let pos4 = diffs
+                            .iter()
+                            .rev()
+                            .find_map(|diff| get_position_if_non_zero_pixel(mask, *diff + pos3))
+                            .unwrap();
 
-                    let mut next_found = false;
-                    let mut next_x = 0;
-                    let mut next_y = 0;
-                    let mut next_dir = dir;
-
-                    for i in 0..8 {
-                        let try_dir = (dir + 6 + i) % 8;
-                        let (dx, dy) = neighbors[dir];
-
-                        let check_x = curr_x + dx;
-                        let check_y = curr_y + dy;
-
-                        if check_x < 0
-                            || check_x >= width as i32
-                            || check_y < 0
-                            || check_y >= height as i32
-                        {
-                            continue;
-                        }
-
-                        if mask[(check_y as usize, check_x as usize)] == 255 {
-                            next_x = check_x;
-                            next_y = check_y;
-                            next_dir = (try_dir + 4) % 8;
-                            next_found = true;
+                        if pos4 == curr && pos3 == pos1 {
                             break;
                         }
-                    }
-                    if !next_found {
-                        break;
-                    }
 
-                    curr_x = next_x;
-                    curr_y = next_y;
-                    dir = next_dir;
-
-                    if curr_x == start_x as i32 && curr_y == start_y as i32 {
-                        break;
+                        pos2 = pos3;
+                        pos3 = pos4;
                     }
+                } else {
+                    contour_points.push(curr);
                 }
-
-                if !contour_points.is_empty() {
-                    contours.push(Contour {
-                        points: contour_points,
-                        area: 0.0,
-                        perimeter: 0.0,
-                    })
-                }
+                contours.push(Contour {
+                    points: contour_points,
+                });
             }
         }
     }
+
     contours
+}
+
+fn rotate_to_value(values: &mut VecDeque<Point>, value: Point) {
+    let rotate_pos = values
+        .iter()
+        .position(|x| x.x == value.x && x.y == value.y)
+        .unwrap();
+    values.rotate_left(rotate_pos);
 }

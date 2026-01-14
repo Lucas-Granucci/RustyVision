@@ -1,7 +1,7 @@
 use ndarray::{Array2, ArrayView2, Zip};
 use vision_detection::ball::hough_circles;
 use vision_detection::color::{rgb_to_hsv, ColorRange};
-use vision_detection::contour::contours_from_mask;
+use vision_detection::contour::find_contours;
 
 pub fn run_color_mask(
     rgb_frame: ArrayView2<[u8; 3]>,
@@ -22,12 +22,12 @@ pub fn run_color_mask(
 pub fn detect_contours(mask: ArrayView2<u8>, contour_arr: &mut Array2<u8>) {
     contour_arr.fill(0);
     let (height, width) = mask.dim();
-    let contours = contours_from_mask(mask);
+    let contours = find_contours(mask);
 
     for contour in &contours {
-        for &(x, y) in &contour.points {
-            if x >= 0 && x < width as i32 && y >= 0 && y < height as i32 {
-                contour_arr[(y as usize, x as usize)] = 255;
+        for point in &contour.points {
+            if point.x >= 0 && point.x < width as i32 && point.y >= 0 && point.y < height as i32 {
+                contour_arr[(point.y as usize, point.x as usize)] = 255;
             }
         }
     }
