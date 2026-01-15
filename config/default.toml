@@ -20,7 +20,7 @@ color_upper = [75, 255, 255]
 min_contour_length = 100
 min_area = 100.0
 r_min = 100
-r_max = 300
+r_max = 350
 
 # [web]
 # enabled = true

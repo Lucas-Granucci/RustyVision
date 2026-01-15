@@ -67,13 +67,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         detect_contours(mask_arr.view(), &mut contour_arr, min_length, min_area);
 
         // Run Houghs circle detection
-        detect_circles(
-            contour_arr.view(),
-            &mut circle_arr,
-            config.detection.r_min,
-            config.detection.r_max,
-            &circle_cache,
-        );
+        detect_circles(contour_arr.view(), &mut circle_arr, &circle_cache);
         let cont_dt = t_cont.elapsed();
 
         // Convert to RGB for display
