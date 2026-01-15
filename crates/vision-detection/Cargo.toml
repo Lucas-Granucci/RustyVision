@@ -6,3 +6,4 @@ edition = "2021"
 [dependencies]
 tracing = { workspace = true}
 ndarray = { workspace = true }
+rayon = "1.11.0"

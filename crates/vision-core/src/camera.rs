@@ -1,4 +1,4 @@
-use ndarray::Array2;
+use ndarray::{Array2, ArrayView2};
 use nokhwa::pixel_format::RgbFormat;
 use nokhwa::utils::{CameraIndex, RequestedFormat, RequestedFormatType};
 use nokhwa::Camera;
@@ -34,4 +34,27 @@ pub fn capture_frame(
     }
 
     Ok(())
+}
+
+pub fn resize_array<T: Copy>(
+    arr: ArrayView2<T>,
+    resized: &mut Array2<T>,
+    new_height: usize,
+    new_width: usize,
+) {
+    let (old_height, old_width) = arr.dim();
+
+    let y_ratio = old_height as f32 / new_height as f32;
+    let x_ratio = old_width as f32 / new_width as f32;
+
+    for y in 0..new_height {
+        for x in 0..new_width {
+            let src_y = (y as f32 * y_ratio) as usize;
+            let src_x = (x as f32 * x_ratio) as usize;
+
+            let src_y = src_y.min(old_height - 1);
+            let src_x = src_x.min(old_width - 1);
+            resized[(y, x)] = arr[(src_y, src_x)]
+        }
+    }
 }

@@ -8,10 +8,13 @@ pub struct Circle {
     pub votes: u32,
 }
 
-pub fn precompute_circle_points(r_min: u32, r_max: u32) -> HashMap<u32, Vec<(i32, i32)>> {
+pub fn precompute_circle_points(
+    r_min: u32,
+    r_max: u32,
+    radius_step: u32,
+) -> HashMap<u32, Vec<(i32, i32)>> {
     let mut points = HashMap::with_capacity((r_max - r_min) as usize);
-    let radius_pixel_step: u32 = 4;
-    for r in (r_min..r_max).step_by(radius_pixel_step as usize) {
+    for r in (r_min..r_max).step_by(radius_step as usize) {
         let circle_points = get_circle_points(r);
         points.insert(r, circle_points);
     }

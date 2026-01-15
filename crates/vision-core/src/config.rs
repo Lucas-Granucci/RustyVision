@@ -38,8 +38,9 @@ pub struct DetectionConfig {
     pub color_upper: [u8; 3],
     pub min_contour_length: u32,
     pub min_area: f32,
-    pub r_min: u32,
-    pub r_max: u32,
+    pub min_radius: u32,
+    pub max_radius: u32,
+    pub radius_step: u32,
 }
 
 impl Config {
@@ -79,8 +80,9 @@ impl Config {
                 color_upper: [30, 255, 255],
                 min_contour_length: 100,
                 min_area: 100.0,
-                r_min: 100,
-                r_max: 300,
+                radius_step: 4,
+                min_radius: 100,
+                max_radius: 300,
             },
         }
     }

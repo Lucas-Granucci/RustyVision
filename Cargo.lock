@@ -1107,6 +1107,7 @@ dependencies = [
  "portable-atomic",
  "portable-atomic-util",
  "rawpointer",
+ "rayon",
 ]
 
 [[package]]
@@ -2051,6 +2052,7 @@ name = "vision-detection"
 version = "0.1.0"
 dependencies = [
  "ndarray",
+ "rayon",
  "tracing",
 ]
 

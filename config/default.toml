@@ -15,12 +15,13 @@ fps = 30
 
 [detection]
 enabled = true
-color_lower = [20, 140, 140]  # HSV
+color_lower = [20, 120, 140]  # HSV
 color_upper = [75, 255, 255]
 min_contour_length = 100
 min_area = 100.0
-r_min = 100
-r_max = 350
+min_radius = 120
+max_radius = 330
+radius_step = 3
 
 # [web]
 # enabled = true
