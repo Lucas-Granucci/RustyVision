@@ -19,10 +19,15 @@ pub fn run_color_mask(
     })
 }
 
-pub fn detect_contours(mask: ArrayView2<u8>, contour_arr: &mut Array2<u8>) {
+pub fn detect_contours(
+    mask: ArrayView2<u8>,
+    contour_arr: &mut Array2<u8>,
+    min_length: u32,
+    min_area: f32,
+) {
     contour_arr.fill(0);
     let (height, width) = mask.dim();
-    let contours = find_contours(mask);
+    let contours = find_contours(mask, min_length, min_area);
 
     for contour in &contours {
         for point in &contour.points {

@@ -4,6 +4,7 @@ use std::ops::{Add, Sub};
 
 pub struct Contour {
     pub points: Vec<Point>,
+    pub area: f32,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -32,8 +33,9 @@ impl Sub for Point {
     }
 }
 
-pub fn find_contours(mask: ArrayView2<u8>) -> Vec<Contour> {
+pub fn find_contours(mask: ArrayView2<u8>, min_length: u32, min_area: f32) -> Vec<Contour> {
     let (height, width) = mask.dim();
+    let min_length = min_length as usize;
 
     let get_position_if_non_zero_pixel = |mask: ArrayView2<u8>, curr: Point| {
         let in_bounds =
@@ -98,9 +100,13 @@ pub fn find_contours(mask: ArrayView2<u8>) -> Vec<Contour> {
                 } else {
                     contour_points.push(curr);
                 }
-                contours.push(Contour {
-                    points: contour_points,
-                });
+                let area = contour_area(&contour_points);
+                if contour_points.len() >= min_length && area > min_area {
+                    contours.push(Contour {
+                        points: contour_points,
+                        area: area,
+                    })
+                };
             }
         }
     }
@@ -114,4 +120,15 @@ fn rotate_to_value(values: &mut VecDeque<Point>, value: Point) {
         .position(|x| x.x == value.x && x.y == value.y)
         .unwrap();
     values.rotate_left(rotate_pos);
+}
+
+fn contour_area(contour_points: &Vec<Point>) -> f32 {
+    let mut area: f32 = 0.0;
+    let n = contour_points.len();
+    for i in 0..n {
+        let j = (i + 1) % n;
+        area += (contour_points[i].x * contour_points[j].y
+            - contour_points[j].x * contour_points[i].y) as f32;
+    }
+    0.5 * area.abs()
 }
