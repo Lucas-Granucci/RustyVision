@@ -94,11 +94,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         for ((dst, &gray), &mask) in window_buf
             .iter_mut()
             .zip(circle_arr.iter())
-            .zip(mask_arr.iter())
+            .zip(contour_arr.iter())
         {
             let g = (gray + mask) as u32;
             *dst = (g << 16) | (g << 8) | g;
         }
+        // for (dst, &gray) in window_buf.iter_mut().zip(circle_arr.iter()) {
+        //     let g = gray as u32;
+        //     *dst = (g << 16) | (g << 8) | g;
+        // }
+
         window.update_with_buffer(&window_buf, proc_width, proc_height)?;
 
         // Timing

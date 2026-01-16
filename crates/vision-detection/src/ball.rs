@@ -1,5 +1,5 @@
 use crate::circle::Circle;
-use ndarray::{s, Array3, ArrayView2, ArrayViewMut2, Axis};
+use ndarray::{Array3, ArrayView2, ArrayViewMut2, Axis};
 use rayon::prelude::*;
 use std::collections::HashMap;
 use std::time::Instant;
@@ -12,7 +12,6 @@ fn hough_transform_set_radius_acum(
     circle_points: &[(i32, i32)],
     accumulator_matrix: &mut ArrayViewMut2<'_, usize>,
 ) {
-    let voting_start = Instant::now();
     let accum_ptr = accumulator_matrix.as_mut_ptr();
     let strides = accumulator_matrix.strides();
     let stride_row = strides[0];
@@ -43,26 +42,6 @@ fn hough_transform_set_radius_acum(
             }
         }
     }
-
-    // for &(y, x) in edge_pixels {
-    //     let y_i32 = y as i32;
-    //     let x_i32 = x as i32;
-    //     for &(dx, dy) in circle_points {
-    //         let center_y = y_i32 - dy;
-    //         let center_x = x_i32 - dx;
-
-    //         if center_y >= 0 && center_y < height && center_x >= 0 && center_x < width {
-    //             unsafe {
-    //                 *accumulator_matrix.uget_mut([center_y as usize, center_x as usize]) += 1;
-    //             }
-    //         }
-    //     }
-    // }
-
-    info!(
-        "hough_transform_accum: {}",
-        voting_start.elapsed().as_millis()
-    );
 }
 
 pub fn hough_transform(
@@ -122,23 +101,53 @@ pub fn hough_transform(
 fn max_find(accumulator_matrix: Array3<usize>, radii: Vec<u32>) -> Vec<Circle> {
     let start = Instant::now();
     let mut result = Vec::<Circle>::new();
-    let mut max_votes = 0;
-    let mut best_params = (0, 0, 0);
 
-    for ((r_idx, y, x), &votes) in accumulator_matrix.indexed_iter() {
-        if votes > max_votes {
-            max_votes = votes;
-            let actual_radius = radii[r_idx];
-            best_params = (y, x, actual_radius);
+    let max_votes = accumulator_matrix.iter().max().copied().unwrap_or(0);
+    let threshold = (max_votes as f32 * 0.5).max(30.0) as usize;
+
+    let mut candidates: Vec<Circle> = (0..accumulator_matrix.shape()[0])
+        .into_par_iter()
+        .flat_map(|r_idx| {
+            let slice = accumulator_matrix.index_axis(ndarray::Axis(0), r_idx);
+            let radius = radii[r_idx];
+
+            slice
+                .indexed_iter()
+                .filter(|&(_, &votes)| votes > threshold)
+                .map(move |((y, x), &votes)| Circle {
+                    y: y as u32,
+                    x: x as u32,
+                    radius,
+                    votes: votes as u32,
+                })
+                .collect::<Vec<_>>()
+        })
+        .collect();
+
+    candidates.sort_by(|a, b| b.votes.cmp(&a.votes));
+
+    for candidate in candidates {
+        let mut is_duplicate = false;
+
+        for kept_circle in &result {
+            let dx = candidate.x as i32 - kept_circle.x as i32;
+            let dy = candidate.y as i32 - kept_circle.y as i32;
+            let distance_sq = (dx * dx + dy * dy) as f32;
+
+            let radius_sum = (candidate.radius + kept_circle.radius) as f32;
+            let overlap_thresh_sq = (radius_sum * 0.5).powi(2);
+
+            if distance_sq < overlap_thresh_sq {
+                is_duplicate = true;
+                break;
+            }
+        }
+
+        if !is_duplicate {
+            result.push(candidate);
         }
     }
 
-    result.push(Circle {
-        y: best_params.0 as u32,
-        x: best_params.1 as u32,
-        radius: best_params.2 as u32,
-        votes: 0,
-    });
     info!("max_find_internal_ms: {}", start.elapsed().as_millis());
     result
 }
