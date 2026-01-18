@@ -4,11 +4,11 @@ mod detection;
 
 use config::Config;
 use minifb::{Key, Window, WindowOptions};
-use ndarray::Array2;
+use ndarray::{Array2, ArrayView2};
 use std::time::{Duration, Instant};
 use vision_detection::circle::precompute_circle_points;
 
-use crate::{
+use vision_core::{
     camera::{capture_frame, get_camera, resize_array},
     detection::{detect_circles, detect_contours, run_color_mask},
 };
@@ -90,20 +90,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         detect_circles(contour_arr.view(), &mut circle_arr, &circle_cache);
         let cont_dt = t_cont.elapsed();
 
-        // Convert to RGB for display
-        for ((dst, &gray), &mask) in window_buf
-            .iter_mut()
-            .zip(circle_arr.iter())
-            .zip(contour_arr.iter())
-        {
-            let g = (gray + mask) as u32;
-            *dst = (g << 16) | (g << 8) | g;
-        }
-        // for (dst, &gray) in window_buf.iter_mut().zip(circle_arr.iter()) {
-        //     let g = gray as u32;
-        //     *dst = (g << 16) | (g << 8) | g;
-        // }
-
+        update_window(&mut window_buf, contour_arr.view(), circle_arr.view());
         window.update_with_buffer(&window_buf, proc_width, proc_height)?;
 
         // Timing
@@ -113,14 +100,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let elapsed = last_log.elapsed();
         if elapsed >= Duration::from_secs(1) && frames > 0 {
             let fps = frames as f64 / elapsed.as_secs_f64();
-            let denom = frames as f64;
-            let avg_cont_ms = accum_cont.as_secs_f64() * 1000.0 / denom;
 
-            // tracing::info!(
-            //     fps = fps,
-            //     frames_in_window = frames,
-            //     avg_cont_ms = avg_cont_ms,
-            // );
+            tracing::info!(fps = fps, frames_in_window = frames,);
 
             frames = 0;
             accum_cont = Duration::ZERO;
@@ -129,4 +110,23 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     Ok(())
+}
+
+fn update_window(
+    window_buf: &mut Vec<u32>,
+    contour_arr: ArrayView2<u8>,
+    circle_arr: ArrayView2<u8>,
+) {
+    for ((dst, &circle), &cont) in window_buf
+        .iter_mut()
+        .zip(circle_arr.iter())
+        .zip(contour_arr.iter())
+    {
+        if circle > 0 {
+            *dst = ((circle as u32) << 16) | 0 | 0;
+        } else {
+            let g = cont as u32;
+            *dst = 0 | (g << 8) | g;
+        }
+    }
 }

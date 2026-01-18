@@ -2028,6 +2028,18 @@ checksum = "579a42fc0b8e0c63b76519a339be31bed574929511fa53c1a3acae26eb258f29"
 [[package]]
 name = "vision-calibration"
 version = "0.1.0"
+dependencies = [
+ "image",
+ "minifb",
+ "ndarray",
+ "nokhwa",
+ "serde",
+ "thiserror",
+ "toml",
+ "tracing",
+ "tracing-subscriber",
+ "vision-core",
+]
 
 [[package]]
 name = "vision-core"
@@ -2042,7 +2054,6 @@ dependencies = [
  "toml",
  "tracing",
  "tracing-subscriber",
- "vision-calibration",
  "vision-detection",
  "vision-nt",
 ]

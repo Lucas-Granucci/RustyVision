@@ -2,8 +2,6 @@ use crate::circle::Circle;
 use ndarray::{Array3, ArrayView2, ArrayViewMut2, Axis};
 use rayon::prelude::*;
 use std::collections::HashMap;
-use std::time::Instant;
-use tracing::info;
 
 fn hough_transform_set_radius_acum(
     edge_pixels: &[(usize, usize)],
@@ -48,7 +46,6 @@ pub fn hough_transform(
     contour_arr: ArrayView2<u8>,
     circle_cache: &HashMap<u32, Vec<(i32, i32)>>,
 ) -> Vec<Circle> {
-    let total_start = Instant::now();
     let (height, width) = contour_arr.dim();
 
     let radii: Vec<u32> = {
@@ -71,7 +68,6 @@ pub fn hough_transform(
     let height = height as i32;
     let width = width as i32;
 
-    let voting_start = Instant::now();
     accumulator_matrix
         .axis_iter_mut(Axis(0))
         .into_par_iter()
@@ -86,24 +82,15 @@ pub fn hough_transform(
                 &mut radius_frame,
             );
         });
-    info!("voting_ms: {}", voting_start.elapsed().as_millis());
-
-    let max_find_start = Instant::now();
     let circles = max_find(accumulator_matrix, radii);
-    info!("max_find_ms: {}", max_find_start.elapsed().as_millis());
-    info!(
-        "hough_transform_total_ms: {}",
-        total_start.elapsed().as_millis()
-    );
     circles
 }
 
 fn max_find(accumulator_matrix: Array3<usize>, radii: Vec<u32>) -> Vec<Circle> {
-    let start = Instant::now();
     let mut result = Vec::<Circle>::new();
 
     let max_votes = accumulator_matrix.iter().max().copied().unwrap_or(0);
-    let threshold = (max_votes as f32 * 0.5).max(30.0) as usize;
+    let threshold = (max_votes as f32 * 0.5).max(15.0) as usize;
 
     let mut candidates: Vec<Circle> = (0..accumulator_matrix.shape()[0])
         .into_par_iter()
@@ -147,7 +134,5 @@ fn max_find(accumulator_matrix: Array3<usize>, radii: Vec<u32>) -> Vec<Circle> {
             result.push(candidate);
         }
     }
-
-    info!("max_find_internal_ms: {}", start.elapsed().as_millis());
     result
 }

@@ -8,15 +8,15 @@ identity = "rusty-vision"
 publish_rate_hz = 50
 
 [camera]
-device_id = 0
-width = 1920
-height = 1080
-fps = 30
+device_id = 1
+width = 1280
+height = 800
+fps = 100
 
 [detection]
 enabled = true
-color_lower = [20, 120, 140]  # HSV
-color_upper = [75, 255, 255]
+color_lower = [0, 95, 115]  # HSV
+color_upper = [255, 255, 255]
 min_contour_length = 100
 min_area = 100.0
 min_radius = 40

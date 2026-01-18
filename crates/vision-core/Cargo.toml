@@ -10,7 +10,6 @@ path = "src/main.rs"
 [dependencies]
 vision-detection = { path = "../vision-detection" }
 vision-nt = { path = "../vision-nt" }
-vision-calibration = { path = "../vision-calibration" }
 
 ndarray = { workspace = true }
 serde = { workspace = true }
