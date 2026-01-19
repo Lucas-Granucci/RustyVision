@@ -62,8 +62,9 @@ pub async fn run_dashboard_server(
         circle_frames: circle_hub,
     };
     let app = axum::Router::new()
+        .route("/", get(index_page))
         .route("/stream/mask", get(stream_mask))
-        .route("/stream/contour", get(stream_contours))
+        .route("/stream/contours", get(stream_contours))
         .route("/stream/circles", get(stream_circles))
         .with_state(state);
 
@@ -107,5 +108,76 @@ async fn stream_mjpeg_internal(hub: FrameHub) -> impl IntoResponse {
             "multipart/x-mixed-replace; boundary=frame",
         )],
         axum::body::Body::from_stream(stream),
+    )
+}
+
+async fn index_page() -> impl IntoResponse {
+    (
+        StatusCode::OK,
+        [(header::CONTENT_TYPE, "text/html")],
+        r#"
+<!DOCTYPE html>
+<html>
+<head>
+    <title>RustyVision Streams</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background: #1a1a1a;
+            font-family: monospace;
+            color: #fff;
+        }
+        h1 {
+            text-align: center;
+            color: #4a9eff;
+            margin-bottom: 30px;
+        }
+        .streams {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 20px;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        .stream-box {
+            background: #2a2a2a;
+            border: 2px solid #4a9eff;
+            border-radius: 8px;
+            padding: 15px;
+            box-shadow: 0 4px 12px rgba(74, 158, 255, 0.3);
+        }
+        .stream-box h2 {
+            margin: 0 0 10px 0;
+            color: #4a9eff;
+            font-size: 18px;
+        }
+        .stream-box img {
+            width: 100%;
+            height: auto;
+            display: block;
+            border: 1px solid #333;
+        }
+    </style>
+</head>
+<body>
+    <h1>RustyVision - Multi-Stream Dashboard</h1>
+    <div class="streams">
+        <div class="stream-box">
+            <h2>Mask (HSV Color Filter)</h2>
+            <img src="/stream/mask" alt="Mask stream" />
+        </div>
+        <div class="stream-box">
+            <h2>Contours</h2>
+            <img src="/stream/contours" alt="Contours stream" />
+        </div>
+        <div class="stream-box">
+            <h2>Detected Circles</h2>
+            <img src="/stream/circles" alt="Circles stream" />
+        </div>
+    </div>
+</body>
+</html>
+"#,
     )
 }
