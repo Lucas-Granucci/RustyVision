@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Config {
     pub system: SystemConfig,
     pub networktables: NetworkTablesConfig,
@@ -10,20 +10,20 @@ pub struct Config {
     pub detection: DetectionConfig,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct SystemConfig {
     pub log_level: String,
     pub telemetry_enabled: bool,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct NetworkTablesConfig {
     pub server: String,
     pub identity: String,
     pub publish_rate_hz: u32,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct CameraConfig {
     pub device_id: u32,
     pub width: u32,
@@ -31,9 +31,8 @@ pub struct CameraConfig {
     pub fps: u32,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
 pub struct DetectionConfig {
-    pub enabled: bool,
     pub color_lower: [u8; 3],
     pub color_upper: [u8; 3],
     pub min_contour_length: u32,
@@ -41,6 +40,7 @@ pub struct DetectionConfig {
     pub min_radius: u32,
     pub max_radius: u32,
     pub radius_step: u32,
+    pub vote_thresh: u32,
 }
 
 impl Config {
@@ -75,7 +75,6 @@ impl Config {
                 fps: 30,
             },
             detection: DetectionConfig {
-                enabled: true,
                 color_lower: [20, 100, 100],
                 color_upper: [30, 255, 255],
                 min_contour_length: 100,
@@ -83,6 +82,7 @@ impl Config {
                 radius_step: 4,
                 min_radius: 100,
                 max_radius: 300,
+                vote_thresh: 20,
             },
         }
     }

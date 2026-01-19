@@ -44,10 +44,11 @@ pub fn detect_circles(
     contour_arr: ArrayView2<u8>,
     circle_arr: &mut Array2<u8>,
     circle_cache: &HashMap<u32, Vec<(i32, i32)>>,
+    vote_thresh: u32,
 ) {
     circle_arr.fill(0);
     let (height, width) = contour_arr.dim();
-    let circles = hough_transform(contour_arr.view(), circle_cache);
+    let circles = hough_transform(contour_arr.view(), circle_cache, vote_thresh);
 
     for circle in &circles {
         if let Some(circle_points) = circle_cache.get(&circle.radius) {

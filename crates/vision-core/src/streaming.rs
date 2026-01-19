@@ -1,3 +1,5 @@
+use crate::config::{Config, DetectionConfig};
+use axum::Json;
 use axum::{
     extract::State,
     http::{header, StatusCode},
@@ -7,8 +9,8 @@ use axum::{
 use bytes::BytesMut;
 use image::{DynamicImage, GrayImage, ImageBuffer, Rgb, RgbImage};
 use ndarray::ArrayView2;
-use std::net::SocketAddr;
-use tokio::sync::broadcast;
+use std::{net::SocketAddr, sync::Arc};
+use tokio::sync::{broadcast, RwLock};
 use tokio_stream::{wrappers::BroadcastStream, StreamExt};
 
 pub type Frame = Vec<u8>;
@@ -32,11 +34,34 @@ impl FrameHub {
 }
 
 #[derive(Clone)]
-struct AppState {
-    raw_frames: FrameHub,
-    mask_frames: FrameHub,
-    contour_frames: FrameHub,
-    circle_frames: FrameHub,
+pub struct AppState {
+    pub raw_frames: FrameHub,
+    pub mask_frames: FrameHub,
+    pub contour_frames: FrameHub,
+    pub circle_frames: FrameHub,
+    pub config: Arc<RwLock<Config>>,
+}
+
+impl AppState {
+    pub fn new(
+        raw_hub: FrameHub,
+        mask_hub: FrameHub,
+        contour_hub: FrameHub,
+        circle_hub: FrameHub,
+        config: Config,
+    ) -> Self {
+        Self {
+            raw_frames: raw_hub,
+            mask_frames: mask_hub,
+            contour_frames: contour_hub,
+            circle_frames: circle_hub,
+            config: Arc::new(RwLock::new(config)),
+        }
+    }
+
+    pub async fn get_detection(&self) -> DetectionConfig {
+        self.config.read().await.detection.clone()
+    }
 }
 
 pub trait ToDynamicImage {
@@ -79,26 +104,33 @@ pub async fn run_dashboard_server(
     mask_hub: FrameHub,
     contour_hub: FrameHub,
     circle_hub: FrameHub,
-) -> anyhow::Result<()> {
-    let state = AppState {
-        raw_frames: raw_hub,
-        mask_frames: mask_hub,
-        contour_frames: contour_hub,
-        circle_frames: circle_hub,
-    };
+    config: Config,
+) -> anyhow::Result<AppState> {
+    let state = AppState::new(raw_hub, mask_hub, contour_hub, circle_hub, config);
+    let state_for_axum = state.clone();
+
     let app = axum::Router::new()
         .route("/", get(index_page))
+        .route(
+            "/config",
+            get(get_config_handler).post(update_config_handler),
+        )
         .route("/stream/raw", get(stream_raw))
         .route("/stream/mask", get(stream_mask))
         .route("/stream/contours", get(stream_contours))
         .route("/stream/circles", get(stream_circles))
-        .with_state(state);
+        .with_state(state_for_axum);
 
     let addr: SocketAddr = "0.0.0.0:5800".parse()?;
-    tracing::info!("dashboard listening on http://{}", addr);
+    tracing::info!("Dashboard listening on http://{}", addr);
 
-    axum::serve(tokio::net::TcpListener::bind(addr).await?, app).await?;
-    Ok(())
+    tokio::spawn(async move {
+        if let Err(e) = axum::serve(tokio::net::TcpListener::bind(addr).await.unwrap(), app).await {
+            tracing::error!("Serving error: {}", e)
+        }
+    });
+
+    Ok(state)
 }
 
 async fn stream_raw(State(state): State<AppState>) -> impl IntoResponse {
@@ -139,6 +171,23 @@ async fn stream_mjpeg_internal(hub: FrameHub) -> impl IntoResponse {
         )],
         axum::body::Body::from_stream(stream),
     )
+}
+
+async fn get_config_handler(State(state): State<AppState>) -> Json<DetectionConfig> {
+    tracing::info!("getting config");
+    Json(state.get_detection().await)
+}
+
+async fn update_config_handler(
+    State(state): State<AppState>,
+    Json(new_detection_cfg): Json<DetectionConfig>,
+) -> impl IntoResponse {
+    tracing::info!("Received configuration update request");
+    let mut config = state.config.write().await;
+    tracing::debug!("New Config Values: {:?}", new_detection_cfg);
+    config.detection = new_detection_cfg;
+    tracing::info!("Configuration successfully updated in AppState");
+    StatusCode::OK
 }
 
 async fn index_page() -> impl IntoResponse {
@@ -262,6 +311,44 @@ async fn index_page() -> impl IntoResponse {
             min-height: 0;
         }
         .view-display img { max-width: 100%; max-height: 100%; display: block; object-fit: contain; }
+
+        /* New Save Button Styling */
+            .save-container {
+                padding: 15px;
+                border-top: 1px solid #334155;
+                background: #1e293b;
+            }
+
+            .save-button {
+                width: 100%;
+                background: #10b981; /* Green accent */
+                color: white;
+                border: none;
+                padding: 12px;
+                border-radius: 4px;
+                font-weight: bold;
+                font-family: 'Courier New', Courier, monospace;
+                cursor: pointer;
+                text-transform: uppercase;
+                letter-spacing: 1px;
+                transition: background 0.2s;
+            }
+
+            .save-button:hover {
+                background: #059669;
+            }
+
+            .save-button:active {
+                transform: translateY(1px);
+            }
+
+            .status-msg {
+                font-size: 0.7rem;
+                margin-top: 8px;
+                text-align: center;
+                color: #10b981;
+                display: none;
+            }
     </style>
 </head>
 <body>
@@ -276,27 +363,27 @@ async fn index_page() -> impl IntoResponse {
                 <div class="config-section-controls">
                     <div class="input-group">
                         <label>H Lower</label>
-                        <input type="number" value="30">
+                        <input type="number" id="h_low" value="0">
                     </div>
                     <div class="input-group">
                         <label>H Upper</label>
-                        <input type="number" value="90">
+                        <input type="number" id="h_high" value="0">
                     </div>
                     <div class="input-group">
                         <label>S Lower</label>
-                        <input type="number" value="100">
+                        <input type="number" id="s_low" value="0">
                     </div>
                     <div class="input-group">
                         <label>S Upper</label>
-                        <input type="number" value="255">
+                        <input type="number" id="s_high" value="0">
                     </div>
                     <div class="input-group">
                         <label>V Lower</label>
-                        <input type="number" value="100">
+                        <input type="number" id="v_low" value="0">
                     </div>
                     <div class="input-group">
                         <label>V Upper</label>
-                        <input type="number" value="255">
+                        <input type="number" id="v_high" value="0">
                     </div>
                 </div>
             </div>
@@ -306,11 +393,11 @@ async fn index_page() -> impl IntoResponse {
                 <div class="config-section-controls">
                     <div class="input-group">
                         <label>Min Area</label>
-                        <input type="number" value="500">
+                        <input type="number" id="min_area" value="0">
                     </div>
                     <div class="input-group">
                         <label>Min Length</label>
-                        <input type="number" value="50">
+                        <input type="number" id="min_length" value="0">
                     </div>
                 </div>
             </div>
@@ -319,14 +406,26 @@ async fn index_page() -> impl IntoResponse {
                 <div class="config-section-title">Circle Hough</div>
                 <div class="config-section-controls">
                     <div class="input-group">
-                        <label>Vote Thresh</label>
-                        <input type="number" value="25">
+                        <label>Min Radius</label>
+                        <input type="number" id="min_radius" value="0">
                     </div>
                     <div class="input-group">
-                        <label>Min Radius</label>
-                        <input type="number" value="10">
+                        <label>Max Radius</label>
+                        <input type="number" id="max_radius" value="0">
+                    </div>
+                    <div class="input-group">
+                        <label>Radius Step</label>
+                        <input type="number" id="radius_step" value="0">
+                    </div>
+                    <div class="input-group">
+                        <label>Vote Thresh</label>
+                        <input type="number" id="vote_thresh" value="0">
                     </div>
                 </div>
+            </div>
+            <div class="save-container">
+                <button id="save_btn" class="save-button">Save Configuration</button>
+                <div id="status_msg" class="status-msg">✓ CONFIG UPDATED</div>
             </div>
         </div>
     </div>
@@ -365,6 +464,81 @@ async fn index_page() -> impl IntoResponse {
             </div>
         </div>
     </div>
+
+    <script>
+        const val = (id) => parseFloat(document.getElementById(id).value);
+
+        async function loadConfig() {
+            try {
+                const res = await fetch('/config');
+                const cfg = await res.json();
+
+                document.getElementById('h_low').value = cfg.color_lower[0];
+                document.getElementById('s_low').value = cfg.color_lower[1];
+                document.getElementById('v_low').value = cfg.color_lower[2];
+                document.getElementById('h_high').value = cfg.color_upper[0];
+                document.getElementById('s_high').value = cfg.color_upper[1];
+                document.getElementById('v_high').value = cfg.color_upper[2];
+
+                document.getElementById('min_area').value = cfg.min_area;
+                document.getElementById('min_length').value = cfg.min_contour_length;
+
+                document.getElementById('min_radius').value = cfg.min_radius;
+                document.getElementById('max_radius').value = cfg.max_radius;
+                document.getElementById('radius_step').value = cfg.radius_step;
+                document.getElementById('vote_thresh').value = cfg.vote_thresh;
+
+            } catch (e) {
+                console.error("Failed to load config:", e);
+            }
+        }
+
+        async function updateConfig() {
+            const btn = document.getElementById('save_btn');
+            const status = document.getElementById('status_msg');
+
+            btn.innerText = "SAVING...";
+            btn.disabled = true;
+
+            const data = {
+                color_lower: [val('h_low'), val('s_low'), val('v_low')],
+                color_upper: [val('h_high'), val('s_high'), val('v_high')],
+                min_area: val('min_area'),
+                min_contour_length: Math.floor(val('min_length')),
+                min_radius: Math.floor(val('min_radius')),
+                max_radius: Math.floor(val('max_radius')),
+                radius_step: Math.floor(val('radius_step')),
+                vote_thresh: Math.floor(val('vote_thresh'))
+            };
+
+            try {
+                const response = await fetch('/config', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+
+                if (response.ok) {
+                    // Show success feedback
+                    status.style.display = 'block';
+                    setTimeout(() => { status.style.display = 'none'; }, 2000);
+                }
+            } catch (e) {
+                console.error("Update failed:", e);
+                alert("Failed to save config");
+            } finally {
+                btn.innerText = "SAVE CONFIGURATION";
+                btn.disabled = false;
+            }
+        }
+
+        // REMOVED: Automatic listeners on input change
+        // ADDED: Single listener for the save button
+        document.getElementById('save_btn').addEventListener('click', updateConfig);
+
+        // Load initial state
+        loadConfig();
+    </script>
 </body>
 </html>
 "#,

@@ -45,6 +45,7 @@ fn hough_transform_set_radius_acum(
 pub fn hough_transform(
     contour_arr: ArrayView2<u8>,
     circle_cache: &HashMap<u32, Vec<(i32, i32)>>,
+    vote_thresh: u32,
 ) -> Vec<Circle> {
     let (height, width) = contour_arr.dim();
 
@@ -82,15 +83,13 @@ pub fn hough_transform(
                 &mut radius_frame,
             );
         });
-    let circles = max_find(accumulator_matrix, radii);
+    let circles = max_find(accumulator_matrix, radii, vote_thresh);
     circles
 }
 
-fn max_find(accumulator_matrix: Array3<usize>, radii: Vec<u32>) -> Vec<Circle> {
+fn max_find(accumulator_matrix: Array3<usize>, radii: Vec<u32>, vote_thresh: u32) -> Vec<Circle> {
     let mut result = Vec::<Circle>::new();
-
-    let max_votes = accumulator_matrix.iter().max().copied().unwrap_or(0);
-    let threshold = (max_votes as f32 * 0.5).max(15.0) as usize;
+    let threshold = vote_thresh as usize;
 
     let mut candidates: Vec<Circle> = (0..accumulator_matrix.shape()[0])
         .into_par_iter()
