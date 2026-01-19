@@ -23,12 +23,17 @@ async fn main() -> anyhow::Result<()> {
         .init();
     tracing::info!("RustyVision waking up...");
 
-    // Create FrameHub for streaming
-    let frame_hub = FrameHub::new();
-    let hub_clone = frame_hub.clone();
+    // Create FrameHubs for streaming
+    let mask_hub = FrameHub::new();
+    let contour_hub = FrameHub::new();
+    let circle_hub = FrameHub::new();
+
+    let mask_clone = mask_hub.clone();
+    let contour_clone = contour_hub.clone();
+    let circle_clone = circle_hub.clone();
 
     tokio::spawn(async move {
-        if let Err(e) = run_dashboard_server(hub_clone).await {
+        if let Err(e) = run_dashboard_server(mask_clone, contour_clone, circle_clone).await {
             tracing::error!("Dashboard server error: {}", e);
         }
     });
@@ -83,8 +88,14 @@ async fn main() -> anyhow::Result<()> {
             detect_contours(mask_arr.view(), &mut contour_arr, min_length, min_area);
             detect_circles(contour_arr.view(), &mut circle_arr, &circle_cache);
 
+            if let Some(jpeg_data) = array_to_jpeg(mask_arr.view()) {
+                mask_hub.publish(jpeg_data);
+            }
+            if let Some(jpeg_data) = array_to_jpeg(contour_arr.view()) {
+                contour_hub.publish(jpeg_data);
+            }
             if let Some(jpeg_data) = array_to_jpeg(circle_arr.view()) {
-                frame_hub.publish(jpeg_data);
+                circle_hub.publish(jpeg_data);
             }
 
             frame_counter += 1;

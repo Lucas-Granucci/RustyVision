@@ -33,7 +33,9 @@ impl FrameHub {
 
 #[derive(Clone)]
 struct AppState {
-    frames: FrameHub,
+    mask_frames: FrameHub,
+    contour_frames: FrameHub,
+    circle_frames: FrameHub,
 }
 
 // Convert grayscale ndarray to JPEG bytes
@@ -49,10 +51,20 @@ pub fn array_to_jpeg(arr: ArrayView2<u8>) -> Option<Vec<u8>> {
     Some(buf)
 }
 
-pub async fn run_dashboard_server(hub: FrameHub) -> anyhow::Result<()> {
-    let state = AppState { frames: hub };
+pub async fn run_dashboard_server(
+    mask_hub: FrameHub,
+    contour_hub: FrameHub,
+    circle_hub: FrameHub,
+) -> anyhow::Result<()> {
+    let state = AppState {
+        mask_frames: mask_hub,
+        contour_frames: contour_hub,
+        circle_frames: circle_hub,
+    };
     let app = axum::Router::new()
-        .route("/stream", get(stream_mjpeg))
+        .route("/stream/mask", get(stream_mask))
+        .route("/stream/contour", get(stream_contours))
+        .route("/stream/circles", get(stream_circles))
         .with_state(state);
 
     let addr: SocketAddr = "0.0.0.0:5800".parse()?;
@@ -62,8 +74,20 @@ pub async fn run_dashboard_server(hub: FrameHub) -> anyhow::Result<()> {
     Ok(())
 }
 
-async fn stream_mjpeg(State(state): State<AppState>) -> impl IntoResponse {
-    let rx = state.frames.subscribe();
+async fn stream_mask(State(state): State<AppState>) -> impl IntoResponse {
+    stream_mjpeg_internal(state.mask_frames).await
+}
+
+async fn stream_contours(State(state): State<AppState>) -> impl IntoResponse {
+    stream_mjpeg_internal(state.contour_frames).await
+}
+
+async fn stream_circles(State(state): State<AppState>) -> impl IntoResponse {
+    stream_mjpeg_internal(state.circle_frames).await
+}
+
+async fn stream_mjpeg_internal(hub: FrameHub) -> impl IntoResponse {
+    let rx = hub.subscribe();
     let stream = BroadcastStream::new(rx)
         .filter_map(|result| result.ok())
         .map(|frame| {
