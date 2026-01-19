@@ -1,21 +1,37 @@
 mod camera;
 mod config;
 mod detection;
+mod streaming;
 
 use config::Config;
-use minifb::{Key, Window, WindowOptions};
-use ndarray::{Array2, ArrayView2};
-use std::time::{Duration, Instant};
+use ndarray::Array2;
+use std::time::Duration;
+use tokio::time::Instant;
 use vision_detection::circle::precompute_circle_points;
 
-use vision_core::{
+use crate::{
     camera::{capture_frame, get_camera, resize_array},
     detection::{detect_circles, detect_contours, run_color_mask},
+    streaming::{array_to_jpeg, run_dashboard_server, FrameHub},
 };
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    tracing_subscriber::fmt::init();
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    tracing_subscriber::fmt()
+        .with_thread_ids(true)
+        .with_thread_names(true)
+        .init();
     tracing::info!("RustyVision waking up...");
+
+    // Create FrameHub for streaming
+    let frame_hub = FrameHub::new();
+    let hub_clone = frame_hub.clone();
+
+    tokio::spawn(async move {
+        if let Err(e) = run_dashboard_server(hub_clone).await {
+            tracing::error!("Dashboard server error: {}", e);
+        }
+    });
 
     // Load config
     let config = Config::load_default().unwrap_or_else(|e| {
@@ -41,25 +57,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let color_lower = config.detection.color_lower;
     let color_upper = config.detection.color_upper;
 
-    // Camera stuff
-    let mut camera = get_camera(camera_device_id)?;
-    camera.open_stream()?;
-
-    // Setup window
-    let mut window = Window::new(
-        "RustyVision",
-        proc_width,
-        proc_height,
-        WindowOptions::default(),
-    )?;
-    window.set_target_fps(60);
-
     // Create buffers
-    let pixel_count = proc_width * proc_height;
-    let mut window_buf: Vec<u32> = vec![0; pixel_count];
-
     let mut rgb_frame: Array2<[u8; 3]> = Array2::from_elem((height, width), [0u8; 3]);
-
     let mut rgb_resized: Array2<[u8; 3]> = Array2::from_elem((proc_height, proc_width), [0u8; 3]);
     let mut mask_arr: Array2<u8> = Array2::zeros((proc_height, proc_width));
     let mut contour_arr: Array2<u8> = Array2::zeros((proc_height, proc_width));
@@ -68,65 +67,35 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Circle cache
     let circle_cache = precompute_circle_points(min_radius, max_radius, radius_step);
 
-    // Setup timing
-    let mut frames: u64 = 0;
-    let mut last_log = Instant::now();
-    let mut accum_cont = Duration::ZERO;
+    // Run vision processing in blocking task
+    tokio::task::spawn_blocking(move || -> anyhow::Result<()> {
+        let mut camera = get_camera(camera_device_id)?;
+        camera.open_stream()?;
 
-    while window.is_open() && !window.is_key_down(Key::Escape) {
-        // Camera capture into RGB buf
-        capture_frame(&mut camera, &mut rgb_frame)?;
-        resize_array(rgb_frame.view(), &mut rgb_resized, proc_height, proc_width);
+        let mut frame_counter = 0u32;
+        let mut last_log = Instant::now();
 
-        // Run HSV color mask
-        run_color_mask(rgb_resized.view(), &mut mask_arr, color_lower, color_upper);
+        loop {
+            // Camera capture into RGB buf
+            capture_frame(&mut camera, &mut rgb_frame)?;
+            resize_array(rgb_frame.view(), &mut rgb_resized, proc_height, proc_width);
+            run_color_mask(rgb_resized.view(), &mut mask_arr, color_lower, color_upper);
+            detect_contours(mask_arr.view(), &mut contour_arr, min_length, min_area);
+            detect_circles(contour_arr.view(), &mut circle_arr, &circle_cache);
 
-        let t_cont = Instant::now();
+            if let Some(jpeg_data) = array_to_jpeg(circle_arr.view()) {
+                frame_hub.publish(jpeg_data);
+            }
 
-        // Extract contours from mask
-        detect_contours(mask_arr.view(), &mut contour_arr, min_length, min_area);
-
-        // Run Houghs circle detection
-        detect_circles(contour_arr.view(), &mut circle_arr, &circle_cache);
-        let cont_dt = t_cont.elapsed();
-
-        update_window(&mut window_buf, contour_arr.view(), circle_arr.view());
-        window.update_with_buffer(&window_buf, proc_width, proc_height)?;
-
-        // Timing
-        frames += 1;
-        accum_cont += cont_dt;
-
-        let elapsed = last_log.elapsed();
-        if elapsed >= Duration::from_secs(1) && frames > 0 {
-            let fps = frames as f64 / elapsed.as_secs_f64();
-
-            tracing::info!(fps = fps, frames_in_window = frames,);
-
-            frames = 0;
-            accum_cont = Duration::ZERO;
-            last_log = Instant::now();
+            frame_counter += 1;
+            if last_log.elapsed() >= Duration::from_secs(1) {
+                let fps = frame_counter as f64 / last_log.elapsed().as_secs_f64();
+                tracing::info!("Stream FPS: {:.1}", fps);
+                frame_counter = 0;
+                last_log = Instant::now();
+            }
         }
-    }
-
+    })
+    .await??;
     Ok(())
-}
-
-fn update_window(
-    window_buf: &mut Vec<u32>,
-    contour_arr: ArrayView2<u8>,
-    circle_arr: ArrayView2<u8>,
-) {
-    for ((dst, &circle), &cont) in window_buf
-        .iter_mut()
-        .zip(circle_arr.iter())
-        .zip(contour_arr.iter())
-    {
-        if circle > 0 {
-            *dst = ((circle as u32) << 16) | 0 | 0;
-        } else {
-            let g = cont as u32;
-            *dst = 0 | (g << 8) | g;
-        }
-    }
 }

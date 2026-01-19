@@ -3,7 +3,7 @@ use nokhwa::pixel_format::RgbFormat;
 use nokhwa::utils::{CameraIndex, RequestedFormat, RequestedFormatType};
 use nokhwa::Camera;
 
-pub fn get_camera(device_id: u32) -> Result<Camera, Box<dyn std::error::Error>> {
+pub fn get_camera(device_id: u32) -> anyhow::Result<Camera> {
     let index = CameraIndex::Index(device_id);
     let format_type = RequestedFormatType::AbsoluteHighestFrameRate;
     let requested = RequestedFormat::new::<RgbFormat>(format_type);
@@ -12,10 +12,7 @@ pub fn get_camera(device_id: u32) -> Result<Camera, Box<dyn std::error::Error>> 
     Ok(camera)
 }
 
-pub fn capture_frame(
-    camera: &mut Camera,
-    rgb_frame: &mut Array2<[u8; 3]>,
-) -> Result<(), Box<dyn std::error::Error>> {
+pub fn capture_frame(camera: &mut Camera, rgb_frame: &mut Array2<[u8; 3]>) -> anyhow::Result<()> {
     let frame = camera.frame()?;
     let decoded = frame.decode_image::<RgbFormat>()?;
 
