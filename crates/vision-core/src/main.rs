@@ -52,28 +52,6 @@ async fn main() -> anyhow::Result<()> {
     let proc_width = width / resize_factor;
     let proc_height = height / resize_factor;
 
-    // let camera_device_id = config.camera.device_id;
-
-    // Read constants from config
-    // let min_radius = config.detection.min_radius / resize_factor as u32;
-    // let max_radius = config.detection.max_radius / resize_factor as u32;
-    // let radius_step = config.detection.radius_step;
-
-    // let min_length = config.detection.min_contour_length / resize_factor as u32;
-    // let min_area = config.detection.min_area / (resize_factor * resize_factor) as f32;
-    // let color_lower = config.detection.color_lower;
-    // let color_upper = config.detection.color_upper;
-
-    // Create buffers
-    // let mut rgb_frame: Array2<[u8; 3]> = Array2::from_elem((height, width), [0u8; 3]);
-    // let mut rgb_resized: Array2<[u8; 3]> = Array2::from_elem((proc_height, proc_width), [0u8; 3]);
-    // let mut mask_arr: Array2<u8> = Array2::zeros((proc_height, proc_width));
-    // let mut contour_arr: Array2<u8> = Array2::zeros((proc_height, proc_width));
-    // let mut circle_arr: Array2<u8> = Array2::zeros((proc_height, proc_width));
-
-    // Circle cache
-    // let circle_cache = precompute_circle_points(min_radius, max_radius, radius_step);
-
     // Run vision processing in blocking task
     tokio::task::spawn_blocking(move || -> anyhow::Result<()> {
         let mut camera = get_camera(vision_state.config.blocking_read().camera.device_id)?;

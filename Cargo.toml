@@ -4,7 +4,6 @@ members = [
     "crates/vision-core",
     "crates/vision-detection",
     "crates/vision-nt",
-    "crates/vision-calibration",
 ]
 
 [workspace.dependencies]

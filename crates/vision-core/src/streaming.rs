@@ -195,278 +195,327 @@ async fn index_page() -> impl IntoResponse {
         StatusCode::OK,
         [(header::CONTENT_TYPE, "text/html")],
         r#"<!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>RustyVision Dashboard</title>
+    <meta charset="UTF-8">
+    <title>RustyVision Studio</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
     <style>
+        :root {
+            --primary-blue: #2563eb;
+            --primary-blue-hover: #1d4ed8;
+            --bg-gray: #f1f5f9;
+            --bg-white: #ffffff;
+            --border: #cbd5e1;
+            --text-primary: #0f172a;
+            --text-secondary: #64748b;
+            --sidebar-width: 300px;
+        }
+
         * { margin: 0; padding: 0; box-sizing: border-box; }
+
         body {
-            background-color: #0f172a;
-            color: #f8fafc;
-            font-family: 'Courier New', Courier, monospace;
+            background: var(--bg-gray);
+            color: var(--text-primary);
+            font-family: 'Inter', sans-serif;
             height: 100vh;
             display: flex;
             overflow: hidden;
         }
 
         .sidebar {
-            width: 340px;
-            background: #1e293b;
-            border-right: 1px solid #334155;
+            width: var(--sidebar-width);
+            background: var(--bg-white);
+            border-right: 1px solid var(--border);
             display: flex;
             flex-direction: column;
+            transition: width 0.2s;
+            overflow: hidden;
+        }
+
+        .sidebar.collapsed {
+            width: 0;
         }
 
         .sidebar-header {
-            padding: 15px;
-            border-bottom: 1px solid #334155;
-            background: #0f172a;
+            padding: 20px;
+            border-bottom: 1px solid var(--border);
+            background: var(--primary-blue);
+            color: white;
         }
-        .sidebar-header h1 { color: #38bdf8; font-size: 1.2rem; text-transform: uppercase; letter-spacing: 2px; }
-        .team-badge { background: #3b82f6; color: #fff; padding: 4px 10px; font-weight: bold; border-radius: 4px; display: inline-block; margin-top: 8px; font-size: 0.9rem; }
 
-        .config-panel {
+        .brand-text {
+            font-weight: 600;
+            font-size: 1.1rem;
+        }
+
+        .sidebar-content {
             flex: 1;
             overflow-y: auto;
-            padding: 15px;
+            overflow-x: hidden;
+            padding: 20px;
         }
 
-        .config-section {
-            background: #0f172a;
-            border: 1px solid #334155;
-            border-radius: 6px;
-            margin-bottom: 15px;
+        .control-group {
+            margin-bottom: 24px;
         }
 
-        .config-section-title {
-            padding: 10px 12px;
-            color: #38bdf8;
-            font-weight: bold;
+        .group-label {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 12px;
+            padding-bottom: 6px;
+            border-bottom: 2px solid var(--primary-blue);
+        }
+
+        .input-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        .field {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .field label {
             font-size: 0.8rem;
-            border-bottom: 1px solid #334155;
-            text-transform: uppercase;
-            letter-spacing: 1px;
+            color: var(--text-secondary);
+            font-weight: 500;
         }
 
-        .config-section-controls {
+        .field input {
+            padding: 8px 10px;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            font-size: 0.9rem;
+            font-family: 'Inter', sans-serif;
+            width: 100%;
+            min-width: 0;
+        }
+
+        .field input:focus {
+            outline: none;
+            border-color: var(--primary-blue);
+        }
+
+        .sidebar-footer {
+            padding: 20px;
+            border-top: 1px solid var(--border);
+        }
+
+        .btn-primary {
+            width: 100%;
+            background: var(--primary-blue);
+            color: white;
+            border: none;
             padding: 12px;
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 10px;
+            border-radius: 4px;
+            font-weight: 600;
+            cursor: pointer;
+            font-size: 0.9rem;
         }
 
-        .input-group { display: flex; flex-direction: column; }
-        .input-group label { font-size: 0.7rem; color: #64748b; margin-bottom: 4px; text-transform: uppercase; }
-        .input-group input[type="number"] {
-            background: #334155; border: none; color: white; padding: 6px; border-radius: 4px; font-size: 0.85rem; width: 100%;
+        .btn-primary:hover {
+            background: var(--primary-blue-hover);
         }
 
-        .main-view {
+        .btn-primary:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .main-stage {
             flex: 1;
             display: flex;
             flex-direction: column;
-            background: #0f172a;
         }
 
-        .main-header {
-            padding: 15px 20px;
-            border-bottom: 1px solid #334155;
+        .top-bar {
+            background: var(--bg-white);
+            border-bottom: 1px solid var(--border);
+            padding: 16px 24px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
         }
-        .main-header h2 { color: #38bdf8; font-size: 1.1rem; text-transform: uppercase; letter-spacing: 1px; }
 
-        .grid-container {
+        .toggle-btn {
+            background: var(--bg-white);
+            border: 1px solid var(--border);
+            color: var(--text-secondary);
+            width: 36px;
+            height: 36px;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+        }
+
+        .toggle-btn:hover {
+            background: var(--bg-gray);
+            border-color: var(--primary-blue);
+        }
+
+        .toggle-btn svg {
+            width: 20px;
+            height: 20px;
+        }
+
+        .page-title {
+            font-weight: 600;
+            font-size: 1.1rem;
+            color: var(--text-primary);
+        }
+
+        .video-grid {
             flex: 1;
-            padding: 15px;
+            padding: 20px;
             display: grid;
-            grid-template-columns: 1fr 1fr;
-            grid-template-rows: 1fr 1fr;
-            gap: 15px;
+            grid-template-columns: repeat(2, 1fr);
+            grid-template-rows: repeat(2, 1fr);
+            gap: 20px;
+            overflow: hidden;
         }
 
-        .view-window {
-            background: #1e293b;
-            border: 1px solid #334155;
-            border-radius: 8px;
+        .video-card {
+            background: var(--bg-white);
+            border: 1px solid var(--border);
+            border-radius: 4px;
             display: flex;
             flex-direction: column;
-            min-height: 0;
+            overflow: hidden;
         }
 
-        .view-title {
-            padding: 8px 12px;
-            background: #0f172a;
-            border-bottom: 1px solid #334155;
-            color: #94a3b8;
-            font-weight: bold;
-            font-size: 0.75rem;
-            text-transform: uppercase;
+        .card-header {
+            padding: 10px 16px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            border-bottom: 1px solid var(--border);
+            background: var(--bg-gray);
         }
 
-        .view-display {
+        .card-view {
             flex: 1;
             background: #000;
             display: flex;
             align-items: center;
             justify-content: center;
-            min-height: 0;
         }
-        .view-display img { max-width: 100%; max-height: 100%; display: block; object-fit: contain; }
 
-        /* New Save Button Styling */
-            .save-container {
-                padding: 15px;
-                border-top: 1px solid #334155;
-                background: #1e293b;
-            }
+        .card-view img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+        }
 
-            .save-button {
-                width: 100%;
-                background: #10b981; /* Green accent */
-                color: white;
-                border: none;
-                padding: 12px;
-                border-radius: 4px;
-                font-weight: bold;
-                font-family: 'Courier New', Courier, monospace;
-                cursor: pointer;
-                text-transform: uppercase;
-                letter-spacing: 1px;
-                transition: background 0.2s;
-            }
+        .toast {
+            font-size: 0.85rem;
+            color: white;
+            background: #10b981;
+            text-align: center;
+            margin-top: 10px;
+            font-weight: 500;
+            opacity: 0;
+            transition: opacity 0.3s;
+            padding: 8px;
+            border-radius: 4px;
+            display: none;
+        }
 
-            .save-button:hover {
-                background: #059669;
-            }
-
-            .save-button:active {
-                transform: translateY(1px);
-            }
-
-            .status-msg {
-                font-size: 0.7rem;
-                margin-top: 8px;
-                text-align: center;
-                color: #10b981;
-                display: none;
-            }
+        .toast.visible {
+            opacity: 1;
+            display: block;
+        }
     </style>
 </head>
 <body>
-    <div class="sidebar">
+
+    <div class="sidebar" id="sidebar">
         <div class="sidebar-header">
-            <h1>RustyVision</h1>
-            <div class="team-badge">3082</div>
+            <div class="brand-text">RustyVision</div>
         </div>
-        <div class="config-panel">
-            <div class="config-section">
-                <div class="config-section-title">HSV Threshold</div>
-                <div class="config-section-controls">
-                    <div class="input-group">
-                        <label>H Lower</label>
-                        <input type="number" id="h_low" value="0">
-                    </div>
-                    <div class="input-group">
-                        <label>H Upper</label>
-                        <input type="number" id="h_high" value="0">
-                    </div>
-                    <div class="input-group">
-                        <label>S Lower</label>
-                        <input type="number" id="s_low" value="0">
-                    </div>
-                    <div class="input-group">
-                        <label>S Upper</label>
-                        <input type="number" id="s_high" value="0">
-                    </div>
-                    <div class="input-group">
-                        <label>V Lower</label>
-                        <input type="number" id="v_low" value="0">
-                    </div>
-                    <div class="input-group">
-                        <label>V Upper</label>
-                        <input type="number" id="v_high" value="0">
-                    </div>
+
+        <div class="sidebar-content">
+            <div class="control-group">
+                <div class="group-label">HSV Thresholds</div>
+                <div class="input-grid">
+                    <div class="field"><label>H Min</label><input type="number" id="h_low"></div>
+                    <div class="field"><label>H Max</label><input type="number" id="h_high"></div>
+                    <div class="field"><label>S Min</label><input type="number" id="s_low"></div>
+                    <div class="field"><label>S Max</label><input type="number" id="s_high"></div>
+                    <div class="field"><label>V Min</label><input type="number" id="v_low"></div>
+                    <div class="field"><label>V Max</label><input type="number" id="v_high"></div>
                 </div>
             </div>
 
-            <div class="config-section">
-                <div class="config-section-title">Contour Filter</div>
-                <div class="config-section-controls">
-                    <div class="input-group">
-                        <label>Min Area</label>
-                        <input type="number" id="min_area" value="0">
-                    </div>
-                    <div class="input-group">
-                        <label>Min Length</label>
-                        <input type="number" id="min_length" value="0">
-                    </div>
+            <div class="control-group">
+                <div class="group-label">Morphology</div>
+                <div class="input-grid">
+                    <div class="field"><label>Min Area</label><input type="number" id="min_area"></div>
+                    <div class="field"><label>Min Length</label><input type="number" id="min_length"></div>
                 </div>
             </div>
 
-            <div class="config-section">
-                <div class="config-section-title">Circle Hough</div>
-                <div class="config-section-controls">
-                    <div class="input-group">
-                        <label>Min Radius</label>
-                        <input type="number" id="min_radius" value="0">
-                    </div>
-                    <div class="input-group">
-                        <label>Max Radius</label>
-                        <input type="number" id="max_radius" value="0">
-                    </div>
-                    <div class="input-group">
-                        <label>Radius Step</label>
-                        <input type="number" id="radius_step" value="0">
-                    </div>
-                    <div class="input-group">
-                        <label>Vote Thresh</label>
-                        <input type="number" id="vote_thresh" value="0">
-                    </div>
+            <div class="control-group">
+                <div class="group-label">Hough Circles</div>
+                <div class="input-grid">
+                    <div class="field"><label>Vote</label><input type="number" id="vote_thresh"></div>
+                    <div class="field"><label>Step</label><input type="number" id="radius_step"></div>
+                    <div class="field"><label>Rad Min</label><input type="number" id="min_radius"></div>
+                    <div class="field"><label>Rad Max</label><input type="number" id="max_radius"></div>
                 </div>
             </div>
-            <div class="save-container">
-                <button id="save_btn" class="save-button">Save Configuration</button>
-                <div id="status_msg" class="status-msg">✓ CONFIG UPDATED</div>
-            </div>
+        </div>
+
+        <div class="sidebar-footer">
+            <button id="save_btn" class="btn-primary">Save Config</button>
+            <div id="status_msg" class="toast">✓ Changes Saved</div>
         </div>
     </div>
 
-    <div class="main-view">
-        <div class="main-header">
-            <h2>Pipeline Views</h2>
+    <div class="main-stage">
+        <div class="top-bar">
+            <button class="toggle-btn" id="sidebar_toggle" title="Toggle Sidebar">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+            </button>
+            <div class="page-title">Live Pipeline</div>
         </div>
-        <div class="grid-container">
-            <div class="view-window">
-                <div class="view-title">Raw Footage</div>
-                <div class="view-display">
-                    <img src="/stream/raw" />
-                </div>
-            </div>
 
-            <div class="view-window">
-                <div class="view-title">HSV Threshold</div>
-                <div class="view-display">
-                    <img src="/stream/mask" />
-                </div>
+        <div class="video-grid">
+            <div class="video-card">
+                <div class="card-header">Raw Input</div>
+                <div class="card-view"><img src="/stream/raw" /></div>
             </div>
-
-            <div class="view-window">
-                <div class="view-title">Contour Filter</div>
-                <div class="view-display">
-                    <img src="/stream/contours" />
-                </div>
+            <div class="video-card">
+                <div class="card-header">HSV Mask</div>
+                <div class="card-view"><img src="/stream/mask" /></div>
             </div>
-
-            <div class="view-window">
-                <div class="view-title">Circle Hough</div>
-                <div class="view-display">
-                    <img src="/stream/circles" />
-                </div>
+            <div class="video-card">
+                <div class="card-header">Contours</div>
+                <div class="card-view"><img src="/stream/contours" /></div>
+            </div>
+            <div class="video-card">
+                <div class="card-header">Detection</div>
+                <div class="card-view"><img src="/stream/circles" /></div>
             </div>
         </div>
     </div>
 
     <script>
-        const val = (id) => parseFloat(document.getElementById(id).value);
+        const val = (id) => parseFloat(document.getElementById(id).value) || 0;
+
+        const sidebar = document.getElementById('sidebar');
+        const toggleBtn = document.getElementById('sidebar_toggle');
+
+        toggleBtn.addEventListener('click', () => {
+            sidebar.classList.toggle('collapsed');
+        });
 
         async function loadConfig() {
             try {
@@ -479,25 +528,22 @@ async fn index_page() -> impl IntoResponse {
                 document.getElementById('h_high').value = cfg.color_upper[0];
                 document.getElementById('s_high').value = cfg.color_upper[1];
                 document.getElementById('v_high').value = cfg.color_upper[2];
-
                 document.getElementById('min_area').value = cfg.min_area;
                 document.getElementById('min_length').value = cfg.min_contour_length;
-
                 document.getElementById('min_radius').value = cfg.min_radius;
                 document.getElementById('max_radius').value = cfg.max_radius;
                 document.getElementById('radius_step').value = cfg.radius_step;
                 document.getElementById('vote_thresh').value = cfg.vote_thresh;
 
-            } catch (e) {
-                console.error("Failed to load config:", e);
-            }
+            } catch (e) { console.error("Config load error", e); }
         }
 
         async function updateConfig() {
             const btn = document.getElementById('save_btn');
             const status = document.getElementById('status_msg');
+            const originalText = btn.innerHTML;
 
-            btn.innerText = "SAVING...";
+            btn.innerHTML = "Saving...";
             btn.disabled = true;
 
             const data = {
@@ -519,24 +565,18 @@ async fn index_page() -> impl IntoResponse {
                 });
 
                 if (response.ok) {
-                    // Show success feedback
-                    status.style.display = 'block';
-                    setTimeout(() => { status.style.display = 'none'; }, 2000);
+                    status.classList.add('visible');
+                    setTimeout(() => status.classList.remove('visible'), 2000);
                 }
             } catch (e) {
-                console.error("Update failed:", e);
-                alert("Failed to save config");
+                alert("Failed to save");
             } finally {
-                btn.innerText = "SAVE CONFIGURATION";
+                btn.innerHTML = originalText;
                 btn.disabled = false;
             }
         }
 
-        // REMOVED: Automatic listeners on input change
-        // ADDED: Single listener for the save button
         document.getElementById('save_btn').addEventListener('click', updateConfig);
-
-        // Load initial state
         loadConfig();
     </script>
 </body>
