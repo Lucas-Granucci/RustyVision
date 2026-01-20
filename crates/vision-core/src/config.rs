@@ -8,6 +8,7 @@ pub struct Config {
     pub networktables: NetworkTablesConfig,
     pub camera: CameraConfig,
     pub detection: DetectionConfig,
+    pub web: WebConfig,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -41,6 +42,11 @@ pub struct DetectionConfig {
     pub max_radius: u32,
     pub radius_step: u32,
     pub vote_thresh: u32,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
+pub struct WebConfig {
+    pub port: u32,
 }
 
 impl Config {
@@ -84,6 +90,7 @@ impl Config {
                 max_radius: 300,
                 vote_thresh: 20,
             },
+            web: WebConfig { port: 5800 },
         }
     }
 }

@@ -8,21 +8,20 @@ identity = "rusty-vision"
 publish_rate_hz = 50
 
 [camera]
-device_id = 0
+device_id = 1
 width = 1280
 height = 800
 fps = 100
 
 [detection]
-color_lower = [0, 95, 115]  # HSV
-color_upper = [255, 255, 255]
+color_lower = [10, 150, 115]  # HSV
+color_upper = [130, 255, 255]
 min_contour_length = 100
 min_area = 100.0
 min_radius = 40
 max_radius = 400
 radius_step = 4
-vote_thresh = 20
+vote_thresh = 15
 
-# [web]
-# enabled = true
-# port = 5800
+[web]
+port = 5800
