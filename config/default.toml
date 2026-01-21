@@ -19,7 +19,7 @@ color_upper = [130, 255, 255]
 min_contour_length = 100
 min_area = 100.0
 min_radius = 40
-max_radius = 400
+max_radius = 200
 radius_step = 4
 vote_thresh = 15
 

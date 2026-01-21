@@ -30,13 +30,12 @@ async fn main() -> anyhow::Result<()> {
     });
 
     // Create FrameHubs for streaming
-    let raw_hub = FrameHub::new();
+
     let mask_hub = FrameHub::new();
     let contour_hub = FrameHub::new();
     let circle_hub = FrameHub::new();
 
     let state = run_dashboard_server(
-        raw_hub.clone(),
         mask_hub.clone(),
         contour_hub.clone(),
         circle_hub.clone(),
@@ -128,17 +127,21 @@ async fn main() -> anyhow::Result<()> {
             );
 
             // --- PUBLISH TO DASHBOARD ---
-            if let Some(jpeg) = array_to_jpeg(rgb_resized.view()) {
-                vision_state.raw_frames.publish(jpeg);
+
+            if vision_state.mask_frames.has_subscribers() {
+                if let Some(jpeg) = array_to_jpeg(mask_arr.view()) {
+                    vision_state.mask_frames.publish(jpeg);
+                }
             }
-            if let Some(jpeg) = array_to_jpeg(mask_arr.view()) {
-                vision_state.mask_frames.publish(jpeg);
+            if vision_state.contour_frames.has_subscribers() {
+                if let Some(jpeg) = array_to_jpeg(contour_arr.view()) {
+                    vision_state.contour_frames.publish(jpeg);
+                }
             }
-            if let Some(jpeg) = array_to_jpeg(contour_arr.view()) {
-                vision_state.contour_frames.publish(jpeg);
-            }
-            if let Some(jpeg) = array_to_jpeg(circle_arr.view()) {
-                vision_state.circle_frames.publish(jpeg);
+            if vision_state.circle_frames.has_subscribers() {
+                if let Some(jpeg) = array_to_jpeg(circle_arr.view()) {
+                    vision_state.circle_frames.publish(jpeg);
+                }
             }
 
             // --- FPS Logging ---

@@ -31,12 +31,16 @@ pub async fn index_page() -> impl IntoResponse {
                     flex-direction: column;
                 }
 
+                /* --- Header --- */
                 .header-bar {
                     padding: 15px 20px;
                     border-bottom: 2px solid #000;
                     display: flex;
                     justify-content: space-between;
                     align-items: center;
+                    flex-shrink: 0;
+                    background: #fff;
+                    z-index: 20;
                 }
 
                 .brand {
@@ -55,27 +59,29 @@ pub async fn index_page() -> impl IntoResponse {
                     cursor: pointer;
                     transition: all 0.2s;
                 }
+                .toggle-controls:hover { background: #333; }
 
-                .toggle-controls:hover {
-                    background: #333;
-                }
-
+                /* --- Main Layout --- */
                 .main {
                     flex: 1;
                     display: grid;
                     grid-template-columns: 320px 1fr;
-                    transition: grid-template-columns 0.3s;
+                    transition: grid-template-columns 0.3s cubic-bezier(0.25, 1, 0.5, 1);
+                    overflow: hidden;
                 }
 
                 .main.controls-hidden {
                     grid-template-columns: 0 1fr;
                 }
 
+                /* --- Sidebar --- */
                 .sidebar {
                     border-right: 2px solid #000;
                     overflow: hidden;
                     display: flex;
                     flex-direction: column;
+                    background: #f4f4f4;
+                    min-width: 320px; /* Prevent squishing during transition */
                 }
 
                 .controls-area {
@@ -84,9 +90,7 @@ pub async fn index_page() -> impl IntoResponse {
                     padding: 20px;
                 }
 
-                .section {
-                    margin-bottom: 30px;
-                }
+                .section { margin-bottom: 30px; }
 
                 .section-head {
                     font-size: 0.7rem;
@@ -105,17 +109,8 @@ pub async fn index_page() -> impl IntoResponse {
                     margin-bottom: 10px;
                 }
 
-                .field {
-                    display: flex;
-                    flex-direction: column;
-                }
-
-                .field-label {
-                    font-size: 0.65rem;
-                    margin-bottom: 4px;
-                    text-transform: uppercase;
-                }
-
+                .field { display: flex; flex-direction: column; }
+                .field-label { font-size: 0.65rem; margin-bottom: 4px; text-transform: uppercase; }
                 .field input {
                     border: 1px solid #000;
                     background: #fff;
@@ -124,11 +119,17 @@ pub async fn index_page() -> impl IntoResponse {
                     font-family: 'Space Mono', monospace;
                     font-size: 0.8rem;
                 }
+                .field input:focus { outline: 2px solid #000; outline-offset: -2px; }
 
-                .field input:focus {
-                    outline: 2px solid #000;
-                    outline-offset: -2px;
+                .checkbox-field {
+                    display: flex;
+                    align-items: center;
+                    margin-bottom: 8px;
+                    font-size: 0.8rem;
+                    cursor: pointer;
+                    user-select: none;
                 }
+                .checkbox-field input { margin-right: 10px; cursor: pointer; }
 
                 .save-area {
                     padding: 12px 20px 14px;
@@ -136,6 +137,7 @@ pub async fn index_page() -> impl IntoResponse {
                     display: flex;
                     flex-direction: column;
                     gap: 8px;
+                    background: #fff;
                 }
 
                 .save-btn {
@@ -151,41 +153,90 @@ pub async fn index_page() -> impl IntoResponse {
                     cursor: pointer;
                     letter-spacing: 1px;
                 }
-
-                .save-btn:active {
-                    background: #333;
-                }
+                .save-btn:active { background: #333; }
 
                 .save-status {
-                    margin-top: 0;
-                    padding: 8px;
-                    background: #000;
-                    color: #fff;
                     text-align: center;
                     font-size: 0.7rem;
                     opacity: 0;
-                    transition: opacity 0.3s;
+                    height: 0;
+                    overflow: hidden;
+                    padding: 0 4px;
+                    transition: opacity 0.3s, height 0.3s, padding 0.3s;
+                    background: #000;
+                    color: white;
                 }
-
                 .save-status.visible {
                     opacity: 1;
+                    height: auto;
+                    padding: 4px;
                 }
 
+                /* --- Dynamic Content Grid --- */
                 .content-area {
-                    display: grid;
-                    grid-template-columns: repeat(2, 1fr);
-                    grid-template-rows: repeat(2, 1fr);
-                    gap: 2px;
                     background: #000;
                     padding: 2px;
+                    display: grid;
+                    gap: 2px;
+                    overflow: hidden;
                 }
 
+                /* Grid Layout Modes
+                   These are toggled via JS based on the count of active streams
+                */
+
+                /* Mode 3: Main (Detect) takes left half, Mask/Contours stack on right */
+                .content-area.layout-3 {
+                    grid-template-columns: 2fr 1fr;
+                    grid-template-rows: 1fr 1fr;
+                    grid-template-areas:
+                        "main sub1"
+                        "main sub2";
+                }
+                /* Need to map specific IDs to areas in Layout 3 */
+                .layout-3 #feed_detect   { grid-area: main; }
+                .layout-3 #feed_mask     { grid-area: sub1; }
+                .layout-3 #feed_contours { grid-area: sub2; }
+
+                /* Mode 2: Split screen (50/50 vertical) */
+                .content-area.layout-2 {
+                    grid-template-columns: 1fr 1fr;
+                    grid-template-rows: 1fr;
+                    /* Areas not strictly needed, flow will handle it, but for safety: */
+                }
+
+                /* Mode 1: Full screen */
+                .content-area.layout-1 {
+                    grid-template-columns: 1fr;
+                    grid-template-rows: 1fr;
+                }
+
+                /* Mode 0: Nothing */
+                .content-area.layout-0 {
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                }
+                .content-area.layout-0::after {
+                    content: "NO ACTIVE FEEDS";
+                    color: #fff;
+                }
+
+                /* --- Feed Items --- */
                 .feed {
-                    background: #fff;
+                    background: #222;
                     position: relative;
                     display: flex;
                     align-items: center;
                     justify-content: center;
+                    overflow: hidden;
+                    width: 100%;
+                    height: 100%;
+                }
+
+                /* When hidden, completely remove from layout flow */
+                .feed.hidden {
+                    display: none !important;
                 }
 
                 .feed-title {
@@ -196,16 +247,20 @@ pub async fn index_page() -> impl IntoResponse {
                     font-weight: 700;
                     text-transform: uppercase;
                     background: #fff;
+                    color: #000;
                     padding: 4px 8px;
                     border: 1px solid #000;
                     z-index: 10;
+                    pointer-events: none;
                 }
 
                 .feed img {
                     width: 100%;
                     height: 100%;
-                    object-fit: contain;
+                    object-fit: contain; /* Ensures we see the whole frame */
+                    display: block;
                 }
+
             </style>
         </head>
         <body>
@@ -218,6 +273,19 @@ pub async fn index_page() -> impl IntoResponse {
                 <div class="main" id="main_area">
                     <div class="sidebar">
                         <div class="controls-area">
+                            <div class="section">
+                                <div class="section-head">Active Streams</div>
+                                <div class="checkbox-field" onclick="toggleStream('detect')">
+                                    <input type="checkbox" id="chk_detect" checked value="on"> <div>Main: Detect</div>
+                                </div>
+                                <div class="checkbox-field" onclick="toggleStream('mask')">
+                                    <input type="checkbox" id="chk_mask" checked value="on"> <div>Sub: Mask</div>
+                                </div>
+                                <div class="checkbox-field" onclick="toggleStream('contours')">
+                                    <input type="checkbox" id="chk_contours" checked value="on"> <div>Sub: Contours</div>
+                                </div>
+                            </div>
+
                             <div class="section">
                                 <div class="section-head">HSV Range</div>
                                 <div class="field-group">
@@ -256,27 +324,25 @@ pub async fn index_page() -> impl IntoResponse {
                         </div>
 
                         <div class="save-area">
-                            <button id="save_btn" class="save-btn">Save</button>
+                            <button id="save_btn" class="save-btn">Save Config</button>
                             <div id="status_msg" class="save-status">SAVED</div>
                         </div>
                     </div>
 
-                    <div class="content-area">
-                        <div class="feed">
-                            <div class="feed-title">RAW</div>
-                            <img src="/stream/raw" alt="Raw">
+                    <div class="content-area layout-3" id="grid_container">
+                        <div class="feed" id="feed_detect">
+                            <div class="feed-title">DETECT (FINAL)</div>
+                            <img src="/stream/circles" data-stream-url="/stream/circles" alt="Circles">
                         </div>
-                        <div class="feed">
+
+                        <div class="feed" id="feed_mask">
                             <div class="feed-title">MASK</div>
-                            <img src="/stream/mask" alt="Mask">
+                            <img src="/stream/mask" data-stream-url="/stream/mask" alt="Mask">
                         </div>
-                        <div class="feed">
+
+                        <div class="feed" id="feed_contours">
                             <div class="feed-title">CONTOURS</div>
-                            <img src="/stream/contours" alt="Contours">
-                        </div>
-                        <div class="feed">
-                            <div class="feed-title">DETECT</div>
-                            <img src="/stream/circles" alt="Circles">
+                            <img src="/stream/contours" data-stream-url="/stream/contours" alt="Contours">
                         </div>
                     </div>
                 </div>
@@ -286,15 +352,63 @@ pub async fn index_page() -> impl IntoResponse {
                 const val = (id) => parseFloat(document.getElementById(id).value) || 0;
                 const mainArea = document.getElementById('main_area');
                 const toggleBtn = document.getElementById('toggle_btn');
+                const gridContainer = document.getElementById('grid_container');
 
+                // Sidebar Toggle
                 toggleBtn.addEventListener('click', () => {
                     mainArea.classList.toggle('controls-hidden');
                 });
+
+                // --- Layout Logic ---
+
+                function updateLayout() {
+                    const feeds = ['detect', 'mask', 'contours'];
+                    let activeCount = 0;
+
+                    // 1. Calculate Active Streams
+                    feeds.forEach(type => {
+                        const isChecked = document.getElementById('chk_' + type).checked;
+                        if(isChecked) activeCount++;
+                    });
+
+                    // 2. Apply Grid Class to Container
+                    gridContainer.className = 'content-area layout-' + activeCount;
+                }
+
+                function toggleStream(type) {
+                    const checkbox = document.getElementById('chk_' + type);
+                    const container = document.getElementById('feed_' + type);
+                    const img = container.querySelector('img');
+
+                    if (checkbox.checked) {
+                        // Enable:
+                        // 1. Make visible in DOM
+                        container.classList.remove('hidden');
+
+                        // 2. Restore Source (reconnects socket/mjpeg)
+                        if (!img.src) {
+                            img.src = img.getAttribute('data-stream-url');
+                        }
+                    } else {
+                        // Disable:
+                        // 1. Remove Source (This is crucial for saving bandwidth)
+                        img.removeAttribute('src');
+
+                        // 2. Remove from DOM layout entirely
+                        container.classList.add('hidden');
+                    }
+
+                    // Recalculate grid sizing
+                    updateLayout();
+                }
+
+                // --- Config Logic ---
 
                 async function loadConfig() {
                     try {
                         const res = await fetch('/config');
                         const cfg = await res.json();
+                        // Mapping fields...
                         document.getElementById('h_low').value = cfg.color_lower[0];
                         document.getElementById('s_low').value = cfg.color_lower[1];
                         document.getElementById('v_low').value = cfg.color_lower[2];
@@ -351,6 +465,6 @@ pub async fn index_page() -> impl IntoResponse {
             </script>
         </body>
         </html>
-"#,
+        "#,
     )
 }

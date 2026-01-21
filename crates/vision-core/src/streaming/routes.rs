@@ -9,10 +9,6 @@ use axum::{
 use bytes::BytesMut;
 use tokio_stream::{wrappers::BroadcastStream, StreamExt};
 
-pub async fn stream_raw(State(state): State<AppState>) -> impl IntoResponse {
-    stream_mjpeg_internal(state.raw_frames).await
-}
-
 pub async fn stream_mask(State(state): State<AppState>) -> impl IntoResponse {
     stream_mjpeg_internal(state.mask_frames).await
 }

@@ -20,11 +20,13 @@ impl FrameHub {
     pub fn publish(&self, frame: Frame) {
         let _ = self.tx.send(frame);
     }
+    pub fn has_subscribers(&self) -> bool {
+        self.tx.receiver_count() > 0
+    }
 }
 
 #[derive(Clone)]
 pub struct AppState {
-    pub raw_frames: FrameHub,
     pub mask_frames: FrameHub,
     pub contour_frames: FrameHub,
     pub circle_frames: FrameHub,
@@ -33,14 +35,12 @@ pub struct AppState {
 
 impl AppState {
     pub fn new(
-        raw_hub: FrameHub,
         mask_hub: FrameHub,
         contour_hub: FrameHub,
         circle_hub: FrameHub,
         config: Config,
     ) -> Self {
         Self {
-            raw_frames: raw_hub,
             mask_frames: mask_hub,
             contour_frames: contour_hub,
             circle_frames: circle_hub,
